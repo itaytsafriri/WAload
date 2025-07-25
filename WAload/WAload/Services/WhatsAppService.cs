@@ -178,6 +178,7 @@ namespace WAload.Services
                         }
                         break;
                     case "media":
+                        System.Diagnostics.Debug.WriteLine($"Media case triggered - Media object is {(message.Media != null ? "not null" : "null")}");
                         if (message.Media != null)
                         {
                             var mediaMessage = new MediaMessage
@@ -192,8 +193,12 @@ namespace WAload.Services
                                 Size = message.Media.Size ?? 0,
                                 SenderName = message.Media.SenderName ?? string.Empty
                             };
-                            System.Diagnostics.Debug.WriteLine($"Media received: {mediaMessage.Filename}");
+                            System.Diagnostics.Debug.WriteLine($"Media received: {mediaMessage.Filename} (Type: {mediaMessage.Type}, Size: {mediaMessage.Size}, Data length: {mediaMessage.Data?.Length ?? 0})");
                             MediaMessageReceived?.Invoke(this, mediaMessage);
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("Media object is null - cannot process media message");
                         }
                         break;
                     case "monitoringStatus":

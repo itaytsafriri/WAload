@@ -319,6 +319,14 @@ async function getChatsWithRetry(client, maxAttempts = 5) {
 async function fetchAndSendGroups() {
     log('Fetching groups...');
     try {
+        // Check if already fetching to prevent multiple simultaneous fetches
+        if (isFetchingGroups) {
+            log('Group fetch already in progress, skipping duplicate request');
+            return;
+        }
+        
+        isFetchingGroups = true;
+        
         // Add a longer initial wait before first fetch
         log('Waiting 10 seconds to ensure WhatsApp Web is fully loaded...');
         await new Promise(resolve => setTimeout(resolve, 10000));
@@ -571,7 +579,6 @@ function handleCommand(data) {
                 log('Group fetch already in progress, skipping duplicate request');
                 return;
             }
-            isFetchingGroups = true;
             fetchAndSendGroups()
                 .finally(() => {
                     isFetchingGroups = false;

@@ -14,7 +14,14 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-
+        <local:InvertedBooleanToVisibilityConverter x:Key="InvertedBoolToVis" />
+        <local:NotNullToVisibilityConverter x:Key="NotNullToVis" />
+        <local:NullToVisibilityConverter x:Key="NullToVis" />
+        <!-- QR Border Animation -->
+        <Storyboard x:Key="QrBorderGlowAnimation" RepeatBehavior="Forever" AutoReverse="True">
+            <ColorAnimation Storyboard.TargetName="QrAnimatedBorder" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
+                            From="#007ACC" To="#00CFFF" Duration="0:0:1"/>
+        </Storyboard>
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
             <Setter Property="Background" Value="#007ACC"/>
@@ -122,6 +129,12 @@
         </Style>
     </Window.Resources>
 
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+            <BeginStoryboard Storyboard="{StaticResource QrBorderGlowAnimation}"/>
+        </EventTrigger>
+    </Window.Triggers>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -154,6 +167,7 @@
         <Border Grid.Row="1" Background="White" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1" Padding="20,15">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -194,7 +208,7 @@
                 </StackPanel>
 
                 <!-- Download Folder -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="517,-12,0,0">
+                <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,10,0,0">
                     <TextBlock Text="Download Folder:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBox x:Name="DownloadFolderTextBox" Width="250" 
                              Style="{StaticResource ModernTextBox}"
@@ -236,8 +250,17 @@
                         <GridViewColumn Header="Thumbnail" Width="80">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Image Source="{Binding Thumbnail}" Width="60" Height="40" 
-                                           Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    <Grid Width="60" Height="40">
+                                        <Image Source="{Binding Thumbnail}" 
+                                               Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
+                                               Visibility="{Binding Thumbnail, Converter={StaticResource NotNullToVis}}"/>
+                                        <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1" 
+                                                Visibility="{Binding Thumbnail, Converter={StaticResource NullToVis}}">
+                                            <TextBlock Text="{Binding Extension}" FontSize="8" 
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#666666"/>
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
@@ -278,16 +301,24 @@
                 Background="#80000000" Visibility="Collapsed">
             <Border Background="White" CornerRadius="8" Padding="20" 
                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect Color="#007ACC" BlurRadius="20" ShadowDepth="0" Opacity="0.3"/>
+                </Border.Effect>
                 <StackPanel>
                     <TextBlock Text="Scan QR Code" FontSize="18" FontWeight="Bold" 
                                HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                    <Image x:Name="QrCodeImage" Width="300" Height="300" 
-                           Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <Border x:Name="QrAnimatedBorder" BorderBrush="#007ACC" BorderThickness="2" CornerRadius="4" Padding="10" Margin="0,0,0,15">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#007ACC" BlurRadius="10" ShadowDepth="0" Opacity="0.2"/>
+                        </Border.Effect>
+                        <Image x:Name="QrCodeImage" Width="300" Height="300" 
+                               Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
                     <TextBlock Text="Open WhatsApp on your phone and scan this QR code" 
-                               HorizontalAlignment="Center" Margin="0,15,0,0" 
+                               HorizontalAlignment="Center" Margin="0,0,0,15" 
                                TextWrapping="Wrap" Foreground="#6C757D"/>
                     <Button Content="Cancel" Style="{StaticResource ModernButton}" 
-                            HorizontalAlignment="Center" Margin="0,15,0,0"
+                            HorizontalAlignment="Center" Margin="0,0,0,0"
                             Click="CancelQrButton_Click"/>
                 </StackPanel>
             </Border>
@@ -298,14 +329,27 @@
                 Background="#80000000" Visibility="Collapsed">
             <Border Background="White" CornerRadius="8" Padding="30" 
                     HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="400">
-                <StackPanel>
-                    <TextBlock x:Name="ProgressTitle" Text="Processing..." FontSize="18" FontWeight="Bold" 
-                               HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                    <TextBlock x:Name="ProgressMessage" Text="Please wait..." 
-                               HorizontalAlignment="Center" Margin="0,0,0,20" 
-                               TextWrapping="Wrap" Foreground="#6C757D"/>
-                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,0"/>
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- App Icon -->
+                    <Image Grid.Column="0" Source="pack://application:,,,/images/icon.ico" 
+                           Width="96" Height="96" Margin="0,0,20,0" 
+                           VerticalAlignment="Top"/>
+                    
+                    <!-- Content -->
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="ProgressTitle" Text="Processing..." FontSize="18" FontWeight="Bold" 
+                                   HorizontalAlignment="Left" Margin="0,0,0,15"/>
+                        <TextBlock x:Name="ProgressMessage" Text="Please wait..." 
+                                   HorizontalAlignment="Left" Margin="0,0,0,20" 
+                                   TextWrapping="Wrap" Foreground="#6C757D"/>
+                        <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,0"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Border>
     </Grid>

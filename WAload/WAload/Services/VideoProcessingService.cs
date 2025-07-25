@@ -3,11 +3,36 @@ using System.IO;
 using System.Threading.Tasks;
 using Xabe.FFmpeg;
 using System.Linq;
+using System.Diagnostics;
 
 namespace WAload.Services
 {
     public class VideoProcessingService
     {
+        private readonly string _ffmpegPath;
+        private readonly string _ffprobePath;
+
+        public VideoProcessingService()
+        {
+            // Get the directory where the current assembly is located
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var assemblyDirectory = Path.GetDirectoryName(assemblyLocation);
+            
+            // Construct paths to ffmpeg executables
+            _ffmpegPath = Path.Combine(assemblyDirectory ?? "", "ffmpeg", "ffmpeg.exe");
+            _ffprobePath = Path.Combine(assemblyDirectory ?? "", "ffmpeg", "ffprobe.exe");
+            
+            // Set the ffmpeg path for Xabe.FFmpeg library
+            if (File.Exists(_ffmpegPath))
+            {
+                FFmpeg.SetExecutablesPath(Path.GetDirectoryName(_ffmpegPath) ?? "");
+                System.Diagnostics.Debug.WriteLine($"FFmpeg path set to: {Path.GetDirectoryName(_ffmpegPath)}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Warning: FFmpeg not found at {_ffmpegPath}");
+            }
+        }
         public async Task<bool> ConvertTo169AspectRatioAsync(string inputPath, string outputPath, IProgress<double>? progress = null)
         {
             try
@@ -111,6 +136,50 @@ namespace WAload.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Error getting video duration: {ex.Message}");
                 return TimeSpan.Zero;
+            }
+        }
+
+        public bool IsFFmpegAvailable()
+        {
+            return File.Exists(_ffmpegPath) && File.Exists(_ffprobePath);
+        }
+
+        public string GetFFmpegVersion()
+        {
+            try
+            {
+                if (!File.Exists(_ffmpegPath))
+                    return "FFmpeg not found";
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ffmpegPath,
+                    Arguments = "-version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process != null)
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+                    
+                    // Extract version from first line
+                    var lines = output.Split('\n');
+                    if (lines.Length > 0)
+                    {
+                        return lines[0].Trim();
+                    }
+                }
+                
+                return "Unknown version";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting FFmpeg version: {ex.Message}");
+                return "Error getting version";
             }
         }
     }

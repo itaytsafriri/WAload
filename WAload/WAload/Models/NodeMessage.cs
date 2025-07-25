@@ -19,7 +19,7 @@ namespace WAload.Models
         [JsonPropertyName("groups")]
         public List<GroupInfo>? Groups { get; set; }
 
-        [JsonPropertyName("media")]
+        [JsonPropertyName("Media")]
         public MediaInfo? Media { get; set; }
 
         [JsonPropertyName("monitoring")]
