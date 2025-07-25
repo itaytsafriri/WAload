@@ -310,10 +310,13 @@ namespace WAload
 
         private void OnQrCodeReceived(object? sender, string qrCode)
         {
+            System.Diagnostics.Debug.WriteLine($"QR code event received in MainWindow: {qrCode.Substring(0, Math.Min(50, qrCode.Length))}...");
+            
             Dispatcher.Invoke(() =>
             {
                 try
                 {
+                    System.Diagnostics.Debug.WriteLine("Generating QR code image...");
                     var qrGenerator = new QRCodeGenerator();
                     var qrCodeData = qrGenerator.CreateQrCode(qrCode, QRCodeGenerator.ECCLevel.Q);
                     var qrCodeBitmap = new QRCode(qrCodeData).GetGraphic(20);
@@ -331,9 +334,11 @@ namespace WAload
                     QrCodeImage.Source = bitmapImage;
                     QrCodeOverlay.Visibility = Visibility.Visible;
                     StatusMessage = "QR code displayed - scan with your phone";
+                    System.Diagnostics.Debug.WriteLine("QR code overlay made visible");
                 }
                 catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"QR code generation error: {ex.Message}");
                     StatusMessage = $"Failed to generate QR code: {ex.Message}";
                 }
             });

@@ -11,10 +11,10 @@
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/images/icon.ico"
         Closing="MainWindow_Closing">
-    
+
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        
+
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
             <Setter Property="Background" Value="#007ACC"/>
@@ -137,12 +137,12 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="WAload" FontSize="24" FontWeight="Bold" Foreground="White"/>
                     <TextBlock Text=" - WhatsApp Media Manager" FontSize="16" Foreground="#ADB5BD" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
-                
+
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Style="{StaticResource StatusIndicator}" Fill="{Binding IsConnected, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{Binding ConnectionStatus}" Foreground="White" VerticalAlignment="Center"/>
@@ -180,7 +180,7 @@
                 <!-- Monitoring Controls -->
                 <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
                     <TextBlock Text="Select Group:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ComboBox x:Name="GroupsComboBox" Width="300" 
+                    <ComboBox x:Name="GroupsComboBox" Width="292" 
                               Style="{StaticResource ModernComboBox}"
                               DisplayMemberPath="Name"
                               SelectedValuePath="Id"
@@ -197,7 +197,7 @@
                 </StackPanel>
 
                 <!-- Download Folder -->
-                <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="517,-12,0,0">
                     <TextBlock Text="Download Folder:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBox x:Name="DownloadFolderTextBox" Width="250" 
                              Style="{StaticResource ModernTextBox}"
@@ -222,7 +222,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    
+
                     <TextBlock Grid.Column="0" Text="Downloaded Media" FontSize="16" FontWeight="SemiBold"/>
                     <TextBlock Grid.Column="1" Text="{Binding MediaItems.Count, StringFormat='{}{0} items'}" Foreground="#6C757D"/>
                 </Grid>

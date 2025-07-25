@@ -31,15 +31,19 @@ namespace WAload.Services
             {
                 _nodeScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "whatsapp.js");
                 
+                System.Diagnostics.Debug.WriteLine($"Looking for Node.js script at: {_nodeScriptPath}");
+                
                 if (!File.Exists(_nodeScriptPath))
                 {
                     throw new FileNotFoundException($"Node.js script not found at: {_nodeScriptPath}");
                 }
 
+                System.Diagnostics.Debug.WriteLine($"Node.js script found, starting process...");
                 await StartNodeProcessAsync();
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"InitializeAsync error: {ex.Message}");
                 throw new InvalidOperationException($"Failed to initialize WhatsApp service: {ex.Message}", ex);
             }
         }
@@ -57,6 +61,8 @@ namespace WAload.Services
                 CreateNoWindow = true
             };
 
+            System.Diagnostics.Debug.WriteLine($"Starting Node.js process with: {startInfo.FileName} {startInfo.Arguments}");
+
             _nodeProcess = new Process { StartInfo = startInfo };
             _nodeProcess.OutputDataReceived += OnNodeOutputReceived;
             _nodeProcess.ErrorDataReceived += OnNodeErrorReceived;
@@ -66,6 +72,8 @@ namespace WAload.Services
             _nodeProcess.BeginOutputReadLine();
             _nodeProcess.BeginErrorReadLine();
 
+            System.Diagnostics.Debug.WriteLine($"Node.js process started with ID: {_nodeProcess.Id}");
+
             // Wait a bit for the process to start
             await Task.Delay(1000);
         }
@@ -73,6 +81,8 @@ namespace WAload.Services
         private void OnNodeOutputReceived(object sender, DataReceivedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.Data)) return;
+
+            System.Diagnostics.Debug.WriteLine($"Node.js output: {e.Data}");
 
             // Skip lines that don't start with '{' (likely debug output)
             if (!e.Data.TrimStart().StartsWith("{"))
@@ -83,19 +93,29 @@ namespace WAload.Services
 
             try
             {
+                System.Diagnostics.Debug.WriteLine($"Attempting to parse JSON: {e.Data}");
                 var message = JsonSerializer.Deserialize<NodeMessage>(e.Data);
-                if (message == null) return;
+                if (message == null) 
+                {
+                    System.Diagnostics.Debug.WriteLine("Deserialized message is null");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Parsed message type: '{message.Type}' (length: {message.Type?.Length ?? 0})");
 
                 switch (message.Type)
                 {
                     case "qr":
+                        System.Diagnostics.Debug.WriteLine($"QR code received: {message.Qr?.Substring(0, Math.Min(50, message.Qr?.Length ?? 0))}...");
                         QrCodeReceived?.Invoke(this, message.Qr ?? string.Empty);
                         break;
                     case "status":
                         _isConnected = message.Connected ?? false;
+                        System.Diagnostics.Debug.WriteLine($"Status changed: {_isConnected}");
                         ConnectionStatusChanged?.Invoke(this, _isConnected);
                         break;
                     case "userName":
+                        System.Diagnostics.Debug.WriteLine($"User name received: {message.Name}");
                         UserNameReceived?.Invoke(this, message.Name ?? string.Empty);
                         break;
                     case "groups":
@@ -104,8 +124,9 @@ namespace WAload.Services
                             var groups = new List<WhatsGroup>();
                             foreach (var group in message.Groups)
                             {
-                                groups.Add(new WhatsGroup { Id = group.Id, Name = group.Name });
+                                groups.Add(new WhatsGroup { Id = group.Id ?? string.Empty, Name = group.Name ?? string.Empty });
                             }
+                            System.Diagnostics.Debug.WriteLine($"Groups received: {groups.Count}");
                             GroupsUpdated?.Invoke(this, groups);
                         }
                         break;
@@ -114,21 +135,23 @@ namespace WAload.Services
                         {
                             var mediaMessage = new MediaMessage
                             {
-                                Id = message.Media.Id,
-                                From = message.Media.From,
-                                Author = message.Media.Author,
-                                Type = message.Media.Type,
-                                Timestamp = message.Media.Timestamp,
-                                Filename = message.Media.Filename,
-                                Data = message.Media.Data,
-                                Size = message.Media.Size,
-                                SenderName = message.Media.SenderName
+                                Id = message.Media.Id ?? string.Empty,
+                                From = message.Media.From ?? string.Empty,
+                                Author = message.Media.Author ?? string.Empty,
+                                Type = message.Media.Type ?? string.Empty,
+                                Timestamp = message.Media.Timestamp != null ? new DateTimeOffset(message.Media.Timestamp.Value).ToUnixTimeSeconds() : 0,
+                                Filename = message.Media.Filename ?? string.Empty,
+                                Data = message.Media.Data ?? string.Empty,
+                                Size = message.Media.Size ?? 0,
+                                SenderName = message.Media.SenderName ?? string.Empty
                             };
+                            System.Diagnostics.Debug.WriteLine($"Media received: {mediaMessage.Filename}");
                             MediaMessageReceived?.Invoke(this, mediaMessage);
                         }
                         break;
                     case "monitoringStatus":
                         _isMonitoring = message.Monitoring ?? false;
+                        System.Diagnostics.Debug.WriteLine($"Monitoring status: {_isMonitoring}");
                         MonitoringStatusChanged?.Invoke(this, _isMonitoring);
                         break;
                 }
@@ -220,33 +243,4 @@ namespace WAload.Services
     }
 
     // Helper classes for JSON deserialization
-    public class NodeMessage
-    {
-        public string Type { get; set; } = string.Empty;
-        public string? Qr { get; set; }
-        public bool? Connected { get; set; }
-        public string? Name { get; set; }
-        public List<GroupInfo>? Groups { get; set; }
-        public MediaInfo? Media { get; set; }
-        public bool? Monitoring { get; set; }
-    }
-
-    public class GroupInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-    }
-
-    public class MediaInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string From { get; set; } = string.Empty;
-        public string Author { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public long Timestamp { get; set; }
-        public string Filename { get; set; } = string.Empty;
-        public string Data { get; set; } = string.Empty;
-        public long Size { get; set; }
-        public string SenderName { get; set; } = string.Empty;
-    }
 } 
