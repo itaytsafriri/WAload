@@ -9,7 +9,7 @@ const log = (message) => {
     const timestamp = new Date().toISOString();
     const formattedMessage = `[${timestamp}] ${message}\n`;
     logStream.write(formattedMessage);
-    // Don't output to console.log as it interferes with JSON communication
+    console.log(`[${timestamp}] ${message}`);
 };
 
 log('=== WAload Node.js Service Starting ===');
@@ -21,6 +21,7 @@ let client = null;
 let isMonitoring = false;
 let selectedGroupId = null;
 let lastQrTimestamp = 0;
+let isFetchingGroups = false; // Flag to prevent multiple simultaneous group fetches
 
 // Error handling
 process.on('uncaughtException', (err) => {
@@ -38,6 +39,13 @@ process.on('unhandledRejection', (reason) => {
 
 function sendToHost(message) {
     console.log(JSON.stringify(message));
+}
+
+// Standalone mode functions
+function showQRInTerminal(qr) {
+    console.log('\n=== SCAN THIS QR CODE WITH YOUR PHONE ===');
+    qrcode.generate(qr, { small: true });
+    console.log('=== QR CODE ABOVE ===\n');
 }
 
 function createClient() {
@@ -115,12 +123,19 @@ async function dismissIntroPopup(page) {
         await page.waitForTimeout(2000);
         
         const selectors = [
+            // New WhatsApp Web interface selectors
+            'button:has-text("המשך")', // Hebrew "Continue" button
+            'button:has-text("Continue")', // English "Continue" button
             'button[data-testid="intro-text"]',
             'button:has-text("Got it")',
             'button:has-text("OK")',
-            'button:has-text("Continue")',
             '[data-testid="intro-text"]',
-            '.intro-text button'
+            '.intro-text button',
+            // Additional selectors for new interface
+            'div[role="dialog"] button',
+            'div[data-testid="modal"] button',
+            'button[aria-label*="Continue"]',
+            'button[aria-label*="המשך"]'
         ];
         
         for (const selector of selectors) {
@@ -137,6 +152,23 @@ async function dismissIntroPopup(page) {
             }
         }
         
+        // Try to find any visible button in modal/popup
+        try {
+            const modalButtons = await page.$$('div[role="dialog"] button, div[data-testid="modal"] button, .modal button');
+            for (const button of modalButtons) {
+                const isVisible = await button.isVisible();
+                if (isVisible) {
+                    const buttonText = await button.textContent();
+                    log(`Found visible modal button: "${buttonText}"`);
+                    await button.click();
+                    log('Modal popup dismissed');
+                    return true;
+                }
+            }
+        } catch (e) {
+            // Continue to next method
+        }
+        
         log('No intro popup found');
         return false;
         
@@ -147,65 +179,221 @@ async function dismissIntroPopup(page) {
 }
 
 async function getChatsWithRetry(client, maxAttempts = 5) {
-    log('Getting chats with retry logic...');
+    const startTime = Date.now();
+    log(`[${new Date().toISOString()}] Getting chats with improved retry logic...`);
+    
+    const page = client.pupPage;
+    let refreshCounter = 0;
+    
+    // Wait for client to be fully ready before starting
+    log(`[${new Date().toISOString()}] Waiting for client to be fully ready...`);
+    await waitForClientReady(client);
+    
+    // Stabilization period: Wait 10 seconds for connection to stabilize
+    log(`[${new Date().toISOString()}] Connection stabilized, waiting 10 seconds for WhatsApp Web to fully load...`);
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
+    // Proactive refresh before first attempt to ensure clean state
+    if (page) {
+        log(`[${new Date().toISOString()}] Performing proactive page refresh for clean state...`);
+        try {
+            await page.reload({ waitUntil: 'networkidle0' });
+            log(`[${new Date().toISOString()}] Page refreshed, waiting for client ready...`);
+            await waitForClientReady(client);
+            log(`[${new Date().toISOString()}] Client ready after proactive refresh`);
+            
+            // Additional wait after refresh
+            log(`[${new Date().toISOString()}] Waiting 3 seconds after refresh...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        } catch (refreshError) {
+            log(`[${new Date().toISOString()}] Proactive refresh failed: ${refreshError.message}`);
+        }
+    }
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         log(`Attempt ${attempt} of ${maxAttempts}`);
         
+        // Refresh every 3 attempts (less aggressive)
+        if (attempt > 1 && attempt % 3 === 1 && page) {
+            refreshCounter++;
+            log(`Refreshing page (refresh #${refreshCounter})...`);
+            try {
+                await page.reload({ waitUntil: 'networkidle0' });
+                log('Page refreshed, waiting for client ready...');
+                await waitForClientReady(client);
+                log('Client ready after refresh');
+                
+                // Additional wait after refresh
+                log('Waiting 3 seconds after refresh...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            } catch (refreshError) {
+                log(`Refresh failed: ${refreshError.message}`);
+            }
+        }
+        
         try {
-            // Wait for client to be ready
-            await waitForClientReady(client);
-            
-            // Dismiss popups on first attempt
-            if (attempt === 1 && client.pupPage) {
-                await dismissIntroPopup(client.pupPage);
+            // Check if client is still ready before attempting getChats
+            if (!client.info || !client.info.wid) {
+                log('Client not ready, waiting...');
+                await waitForClientReady(client);
             }
             
-            // Get chats with timeout
+            // Dismiss popups before attempting getChats (this might be blocking the API)
+            if (page && attempt === 1) {
+                try {
+                    log('Dismissing any popups before getChats...');
+                    await dismissIntroPopup(page);
+                } catch (popupError) {
+                    log(`Error dismissing popups: ${popupError.message}`);
+                }
+            }
+            
+            // Set a timeout for this attempt
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Timeout')), 30000);
+                setTimeout(() => reject(new Error('Timeout')), 30000); // 30 second timeout
             });
             
+            log('Calling client.getChats()...');
             const getChatsPromise = client.getChats();
+            
             const chats = await Promise.race([getChatsPromise, timeoutPromise]);
             
-            if (chats && chats.length > 0) {
-                log(`Successfully retrieved ${chats.length} chats`);
-                return chats;
+            if (!chats || chats.length === 0) {
+                log(`Attempt ${attempt} returned no chats`);
+                if (attempt < maxAttempts) {
+                    log('Waiting 3 seconds before next attempt...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+                continue;
             }
             
-            log(`Attempt ${attempt} returned no chats`);
+            // Validate chats more thoroughly
+            const validChats = chats.filter(chat => {
+                try {
+                    return chat && 
+                           chat.id && 
+                           typeof chat.id === 'object' && 
+                           chat.id._serialized &&
+                           typeof chat.id._serialized === 'string' &&
+                           chat.id._serialized.length > 0;
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            const invalidChats = chats.length - validChats.length;
+            if (invalidChats > 0) {
+                log(`Filtered out ${invalidChats} invalid chat entries.`);
+            }
+            
+            if (validChats.length > 0) {
+                log(`Success on attempt ${attempt}. Found ${validChats.length} valid chats.`);
+                return validChats;
+            } else {
+                log(`Attempt ${attempt} resulted in 0 valid chats.`);
+                if (attempt < maxAttempts) {
+                    log('Waiting 3 seconds before next attempt...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
             
         } catch (error) {
             log(`Error on attempt ${attempt}: ${error.message}`);
-            
+            if (error.message.includes('Timeout')) {
+                log('getChats() call timed out.');
+            } else if (error.message.includes('Page crashed!')) {
+                log('Page crashed. Will attempt to re-initialize.');
+                throw error;
+            }
             if (attempt < maxAttempts) {
-                log('Waiting 5 seconds before retry...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                log('Waiting 3 seconds before retrying...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
             }
         }
     }
     
-    log('All attempts to get chats failed');
+    log('All attempts failed to get chats');
     return [];
 }
 
 async function fetchAndSendGroups() {
     log('Fetching groups...');
-    
     try {
-        const chats = await getChatsWithRetry(client);
+        // Add a longer initial wait before first fetch
+        log('Waiting 10 seconds to ensure WhatsApp Web is fully loaded...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Group fetch timeout after 60 seconds')), 60000);
+        });
         
-        const groups = chats
-            .filter(chat => chat.isGroup)
-            .map(chat => ({
-                id: chat.id._serialized,
-                name: chat.name
-            }));
+        const fetchPromise = getChatsWithRetry(client);
+        let chats = [];
+        try {
+            chats = await Promise.race([fetchPromise, timeoutPromise]);
+        } catch (err) {
+            log(`getChatsWithRetry failed: ${err.message}`);
+        }
         
-        log(`Found ${groups.length} groups`);
+        let groups = [];
+        if (chats && chats.length > 0) {
+            groups = chats
+                .filter(chat => chat.isGroup)
+                .map(chat => ({
+                    id: chat.id._serialized,
+                    name: chat.name
+                }));
+            log(`Found ${groups.length} groups from chats`);
+        } else {
+            log('No groups found in chats, trying alternative method...');
+            try {
+                // Try to get groups directly from the page
+                if (client.pupPage) {
+                    const pageGroups = await client.pupPage.evaluate(() => {
+                        try {
+                            if (window.Store && window.Store.Chat && window.Store.Chat.models) {
+                                const allChats = Array.from(window.Store.Chat.models.values());
+                                const groups = allChats.filter(chat => chat.isGroup);
+                                return groups.map(group => ({
+                                    id: group.id._serialized,
+                                    name: group.name || group.formattedTitle || 'Unknown Group'
+                                }));
+                            }
+                            return [];
+                        } catch (e) {
+                            console.error('Error getting groups from page:', e);
+                            return [];
+                        }
+                    });
+                    if (pageGroups && pageGroups.length > 0) {
+                        log(`Found ${pageGroups.length} groups from page`);
+                        groups = pageGroups;
+                    } else {
+                        log('No groups found from page fallback.');
+                    }
+                }
+            } catch (error) {
+                log(`Alternative group method failed: ${error.message}`);
+            }
+        }
+        // Always try contacts fallback if no groups found
+        if (groups.length === 0) {
+            log('Still no groups, trying contacts fallback...');
+            try {
+                const contacts = await client.getContacts();
+                const groupContacts = contacts.filter(contact => contact.isGroup);
+                groups = groupContacts.map(contact => ({
+                    id: contact.id._serialized,
+                    name: contact.name || contact.pushname || 'Unknown Group'
+                }));
+                log(`Found ${groups.length} groups from contacts`);
+            } catch (error) {
+                log(`Contacts fallback failed: ${error.message}`);
+            }
+        }
+        log(`Final result: Found ${groups.length} groups`);
         sendToHost({ type: 'groups', groups });
-        
     } catch (error) {
         log(`Error fetching groups: ${error.message}`);
         sendToHost({ type: 'groups', groups: [], error: error.message });
@@ -218,6 +406,7 @@ function setupEventListeners() {
         const now = Date.now();
         if (now - lastQrTimestamp > 5000) {
             log('QR code received');
+            showQRInTerminal(qr);
             sendToHost({ type: 'qr', qr });
             lastQrTimestamp = now;
         }
@@ -357,20 +546,37 @@ async function handleLogout() {
 }
 
 function handleCommand(data) {
-    log(`Command received: ${data.toString()}`);
+    const dataStr = data.toString().trim();
+    log(`Command received: "${dataStr}"`);
+    
+    // Skip empty data
+    if (!dataStr) {
+        log('Empty command received, skipping');
+        return;
+    }
     
     let command;
     try {
-        command = JSON.parse(data);
+        command = JSON.parse(dataStr);
+        log(`Successfully parsed command: ${command.type}`);
     } catch (e) {
-        log(`Error parsing command: ${e.message}`);
+        log(`Error parsing command: ${e.message} for data: "${dataStr}"`);
         return;
     }
     
     switch (command.type) {
         case 'get_groups':
             log('Processing get_groups command');
-            fetchAndSendGroups().catch(err => log(`Error in fetchAndSendGroups: ${err.message}`));
+            if (isFetchingGroups) {
+                log('Group fetch already in progress, skipping duplicate request');
+                return;
+            }
+            isFetchingGroups = true;
+            fetchAndSendGroups()
+                .finally(() => {
+                    isFetchingGroups = false;
+                })
+                .catch(err => log(`Error in fetchAndSendGroups: ${err.message}`));
             break;
             
         case 'monitor_group':
@@ -406,8 +612,52 @@ async function main() {
         // Send initial status
         sendToHost({ type: 'status', connected: false });
         
-        // Set up command handling
-        process.stdin.on('data', handleCommand);
+        // Check if running in standalone mode (no stdin redirection)
+        if (process.stdin.isTTY) {
+            log('Running in standalone mode - use these commands:');
+            log('  get_groups - Fetch all groups');
+            log('  monitor <group_id> - Start monitoring a group');
+            log('  stop_monitoring - Stop monitoring');
+            log('  logout - Logout and exit');
+            log('  quit - Exit without logout');
+            log('Type a command and press Enter:');
+            
+            // Set up manual command input
+            process.stdin.setEncoding('utf8');
+            process.stdin.on('data', (data) => {
+                const command = data.toString().trim();
+                if (command === 'quit') {
+                    log('Exiting...');
+                    process.exit(0);
+                } else if (command === 'get_groups') {
+                    fetchAndSendGroups().catch(err => log(`Error: ${err.message}`));
+                } else if (command.startsWith('monitor ')) {
+                    const groupId = command.substring(8);
+                    selectedGroupId = groupId;
+                    isMonitoring = true;
+                    log(`Started monitoring group: ${groupId}`);
+                } else if (command === 'stop_monitoring') {
+                    isMonitoring = false;
+                    selectedGroupId = null;
+                    log('Stopped monitoring');
+                } else if (command === 'logout') {
+                    handleLogout().catch(err => log(`Error: ${err.message}`));
+                } else if (command) {
+                    log(`Unknown command: ${command}`);
+                }
+            });
+        } else {
+            // Set up command handling for C# integration
+            log('Setting up stdin listener...');
+            process.stdin.on('data', handleCommand);
+            process.stdin.on('error', (error) => {
+                log(`Stdin error: ${error.message}`);
+            });
+            process.stdin.on('end', () => {
+                log('Stdin ended');
+            });
+            log('Stdin listener set up');
+        }
         
         // Handle graceful shutdown
         process.on('SIGINT', async () => {

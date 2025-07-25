@@ -167,10 +167,6 @@
                     <Button x:Name="ConnectButton" Content="Connect to WhatsApp" 
                             Style="{StaticResource ModernButton}"
                             Click="ConnectButton_Click"/>
-                    <Button x:Name="GetGroupsButton" Content="Get Groups" 
-                            Style="{StaticResource ModernButton}"
-                            Click="GetGroupsButton_Click"
-                            IsEnabled="{Binding IsConnected}"/>
                     <Button x:Name="LogoutButton" Content="Logout" 
                             Style="{StaticResource DangerButton}"
                             Click="LogoutButton_Click"
@@ -184,6 +180,7 @@
                               Style="{StaticResource ModernComboBox}"
                               DisplayMemberPath="Name"
                               SelectedValuePath="Id"
+                              ItemsSource="{Binding Groups}"
                               SelectionChanged="GroupsComboBox_SelectionChanged"
                               IsEnabled="{Binding IsConnected}"/>
                     <Button x:Name="MonitorButton" Content="Start Monitoring" 
@@ -292,6 +289,22 @@
                     <Button Content="Cancel" Style="{StaticResource ModernButton}" 
                             HorizontalAlignment="Center" Margin="0,15,0,0"
                             Click="CancelQrButton_Click"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Progress Modal -->
+        <Border x:Name="ProgressModal" Grid.RowSpan="4" 
+                Background="#80000000" Visibility="Collapsed">
+            <Border Background="White" CornerRadius="8" Padding="30" 
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="400">
+                <StackPanel>
+                    <TextBlock x:Name="ProgressTitle" Text="Processing..." FontSize="18" FontWeight="Bold" 
+                               HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <TextBlock x:Name="ProgressMessage" Text="Please wait..." 
+                               HorizontalAlignment="Center" Margin="0,0,0,20" 
+                               TextWrapping="Wrap" Foreground="#6C757D"/>
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,0"/>
                 </StackPanel>
             </Border>
         </Border>

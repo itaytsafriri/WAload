@@ -29,6 +29,9 @@ namespace WAload.Services
         {
             try
             {
+                // Clean up any existing session data that might be locked
+                CleanupSessionData();
+                
                 _nodeScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "whatsapp.js");
                 
                 System.Diagnostics.Debug.WriteLine($"Looking for Node.js script at: {_nodeScriptPath}");
@@ -45,6 +48,50 @@ namespace WAload.Services
             {
                 System.Diagnostics.Debug.WriteLine($"InitializeAsync error: {ex.Message}");
                 throw new InvalidOperationException($"Failed to initialize WhatsApp service: {ex.Message}", ex);
+            }
+        }
+
+        private void CleanupSessionData()
+        {
+            try
+            {
+                var sessionPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", ".wwebjs_auth");
+                const int maxRetries = 5;
+                const int delay = 200; // milliseconds
+                
+                System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] Attempting to clean session directory: {sessionPath}");
+                
+                if (Directory.Exists(sessionPath))
+                {
+                    for (int i = 0; i < maxRetries; i++)
+                    {
+                        try
+                        {
+                            Directory.Delete(sessionPath, true); // Recursively delete all contents
+                            System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] Session directory deleted: {sessionPath}");
+                            break;
+                        }
+                        catch (IOException ex) when (i < maxRetries - 1)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] IOException on delete attempt {i + 1} for directory {sessionPath}: {ex.Message}");
+                            Thread.Sleep(delay);
+                        }
+                        catch (UnauthorizedAccessException ex) when (i < maxRetries - 1)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] UnauthorizedAccessException on delete attempt {i + 1} for directory {sessionPath}: {ex.Message}");
+                            Thread.Sleep(delay);
+                        }
+                    }
+                    System.Diagnostics.Debug.WriteLine("[CleanupSessionData] Session data cleaned.");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[CleanupSessionData] Session directory does not exist, nothing to clean.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] Error cleaning session data: {ex.Message}");
             }
         }
 
@@ -181,11 +228,27 @@ namespace WAload.Services
 
         public async Task GetGroupsAsync()
         {
+            System.Diagnostics.Debug.WriteLine("GetGroupsAsync called");
             if (_nodeProcess?.HasExited == false)
             {
                 var command = new { type = "get_groups" };
                 var json = JsonSerializer.Serialize(command);
-                await _nodeProcess.StandardInput.WriteLineAsync(json);
+                System.Diagnostics.Debug.WriteLine($"Sending command to Node.js: {json}");
+                
+                try
+                {
+                    await _nodeProcess.StandardInput.WriteLineAsync(json);
+                    await _nodeProcess.StandardInput.FlushAsync();
+                    System.Diagnostics.Debug.WriteLine("Command sent to Node.js and flushed");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error sending command: {ex.Message}");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Node.js process is not running or has exited");
             }
         }
 

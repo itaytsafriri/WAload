@@ -32,8 +32,8 @@ namespace WAload
         private bool _isConnected;
         private bool _isMonitoring;
         private bool _isGroupsLoaded;
-        private DispatcherTimer? _statusTimer;
         private string _loggedInUserName = string.Empty;
+        private bool _isLoggingOut = false;
 
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -344,9 +344,9 @@ namespace WAload
             });
         }
 
-        private void OnConnectionStatusChanged(object? sender, bool connected)
+        private async void OnConnectionStatusChanged(object? sender, bool connected)
         {
-            Dispatcher.Invoke(() =>
+            await Dispatcher.InvokeAsync(async () =>
             {
                 IsConnected = connected;
                 ConnectButton.IsEnabled = !connected;
@@ -355,6 +355,18 @@ namespace WAload
                 {
                     QrCodeOverlay.Visibility = Visibility.Collapsed;
                     StatusMessage = $"Connected as {_loggedInUserName}";
+                    
+                    // Automatically start fetching groups when connected
+                    try
+                    {
+                        ShowProgressModal("Loading Groups", "Fetching WhatsApp groups...");
+                        await _whatsAppService.GetGroupsAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        HideProgressModal();
+                        StatusMessage = $"Failed to load groups: {ex.Message}";
+                    }
                 }
                 else
                 {
@@ -390,6 +402,15 @@ namespace WAload
                 
                 IsGroupsLoaded = groups.Count > 0;
                 StatusMessage = $"Loaded {groups.Count} groups";
+                HideProgressModal();
+                // Auto-open the dropdown to show user they need to select a group
+                if (groups.Count > 0)
+                {
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                    {
+                        GroupsComboBox.IsDropDownOpen = true;
+                    }));
+                }
             });
         }
 
@@ -701,16 +722,41 @@ namespace WAload
             }
         }
 
+        private void ShowProgressModal(string title, string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ProgressModal.Visibility = Visibility.Visible;
+                ProgressTitle.Text = title;
+                ProgressMessage.Text = message;
+            });
+        }
+
+        private void HideProgressModal()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ProgressModal.Visibility = Visibility.Collapsed;
+            });
+        }
+
         private async void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
+            if (_isLoggingOut)
+                return;
+            e.Cancel = true;
+            _isLoggingOut = true;
+            ShowProgressModal("Logging out", "Logging out, please wait...");
             try
             {
-                await _whatsAppService.DisposeAsync();
+                var logoutTask = _whatsAppService.LogoutAsync();
+                var completedTask = await Task.WhenAny(logoutTask, Task.Delay(10000));
+                // If logout completes or timeout, proceed
             }
-            catch
-            {
-                // Ignore errors during shutdown
-            }
+            catch { /* Ignore errors during shutdown */ }
+            HideProgressModal();
+            _isLoggingOut = false;
+            System.Windows.Application.Current.Dispatcher.Invoke(() => System.Windows.Application.Current.Shutdown());
         }
 
         protected virtual void OnPropertyChanged(string propertyName)
