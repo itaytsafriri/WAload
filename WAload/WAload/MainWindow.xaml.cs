@@ -292,6 +292,38 @@ namespace WAload
             SetupEventHandlers();
             LoadExistingMedia();
             SetupFileWatcher();
+
+            // In MainWindow constructor or OnLoaded, hook up the toggle and animation
+            Loaded += (s, e) =>
+            {
+                var border = MediaProcLabelBorder;
+                var toggle = MediaProcessingToggle;
+                var flashAnim = new ColorAnimation
+                {
+                    From = Colors.Transparent,
+                    To = Colors.DeepSkyBlue,
+                    Duration = TimeSpan.FromMilliseconds(500),
+                    AutoReverse = true,
+                    RepeatBehavior = RepeatBehavior.Forever
+                };
+                var borderBrush = new SolidColorBrush(Colors.Transparent);
+                border.BorderBrush = borderBrush;
+                border.BorderThickness = new Thickness(3);
+                toggle.Checked += (s2, e2) =>
+                {
+                    borderBrush.BeginAnimation(SolidColorBrush.ColorProperty, flashAnim);
+                };
+                toggle.Unchecked += (s2, e2) =>
+                {
+                    borderBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                    borderBrush.Color = Colors.Transparent;
+                };
+                // If already checked on load
+                if (toggle.IsChecked == true)
+                {
+                    borderBrush.BeginAnimation(SolidColorBrush.ColorProperty, flashAnim);
+                }
+            };
         }
 
         private void SetupEventHandlers()
@@ -751,7 +783,7 @@ namespace WAload
                     ProcessingProgressText = "Initializing...";
                     
                     // Update window title to indicate processing
-                    Title = $"WAload - Processing {Path.GetFileName(originalFilePath)}...";
+                    Title = $"WhatUPload - Processing {Path.GetFileName(originalFilePath)}...";
                     
                     // Start the rotation animation
                     var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
@@ -849,7 +881,7 @@ namespace WAload
                     ProcessingProgressText = string.Empty;
                     
                     // Restore window title
-                    Title = "WAload";
+                    Title = "WhatUPload";
                     
                     // Stop the rotation animation
                     var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
@@ -1788,7 +1820,7 @@ namespace WAload
             ProcessingProgressText = string.Empty;
             
             // Restore window title
-            Title = "WAload";
+            Title = "WhatUPload";
             
             // Stop the rotation animation
             var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;

@@ -5,12 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WAload"
         mc:Ignorable="d"
-        Title="WAload - WhatsApp Media Manager" Height="700" Width="1000"
+        Title="WhatUPload - WhatsApp Media Manager" Height="700" Width="1000"
         Background="#F8F9FA"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/images/icon.ico"
-        Closing="MainWindow_Closing">
+        Closing="MainWindow_Closing"
+        FontSize="17" FontFamily="Segoe UI" Padding="20">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -30,38 +31,29 @@
         </Storyboard>
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
-            <Setter Property="Background" Value="#007ACC"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#F5F5F7"/>
+            <Setter Property="Foreground" Value="#222"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="Margin" Value="16,0,0,0"/>
+            <Setter Property="MinWidth" Value="130"/>
+            <Setter Property="FontSize" Value="18"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="15,8"/>
-            <Setter Property="Margin" Value="5"/>
-            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.1"/>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                                CornerRadius="6"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                BorderBrush="{TemplateBinding BorderBrush}">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                            VerticalAlignment="Center"
-                                            Margin="{TemplateBinding Padding}"/>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#005A9E"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#004578"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#CCCCCC"/>
-                                <Setter Property="Foreground" Value="#666666"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <!-- Danger Button Style -->
@@ -159,6 +151,59 @@
 
         <!-- Progress to Width Converter -->
         <local:ProgressToWidthConverter x:Key="ProgressToWidthConverter"/>
+        <!-- Replace Media Processing radio button with toggle switch -->
+        <!-- Add ToggleSwitch style -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="50"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="SwitchBorder" CornerRadius="14" Background="#E0E0E0" Height="28" Width="50"/>
+                            <Ellipse x:Name="SwitchThumb" Fill="White" Width="24" Height="24" Margin="2" HorizontalAlignment="Left"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SwitchBorder" Property="Background" Value="#4CD964"/>
+                                <Setter TargetName="SwitchThumb" Property="HorizontalAlignment" Value="Right"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Red button style for Logout and Stop Monitoring -->
+        <Style x:Key="RedButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#E74C3C"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <LinearGradientBrush x:Key="MacStripedBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#e0e6ed" Offset="0"/>
+            <GradientStop Color="#b3c6e2" Offset="0.25"/>
+            <GradientStop Color="#e0e6ed" Offset="0.5"/>
+            <GradientStop Color="#b3c6e2" Offset="0.75"/>
+            <GradientStop Color="#e0e6ed" Offset="1"/>
+        </LinearGradientBrush>
+        <Style x:Key="MacStripedProgressBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Foreground" Value="{StaticResource MacStripedBrush}"/>
+            <Setter Property="Background" Value="#f5f5f7"/>
+            <Setter Property="BorderBrush" Value="#cfd8dc"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border CornerRadius="9" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}">
+                            <Grid>
+                                <Rectangle x:Name="PART_Track" Fill="Transparent"/>
+                                <Rectangle x:Name="PART_Indicator" Fill="{TemplateBinding Foreground}" RadiusX="9" RadiusY="9"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Window.Triggers>
@@ -184,7 +229,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="WAload" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="WhatUPload" FontSize="24" FontWeight="Bold" Foreground="White"/>
                     <TextBlock Text=" - WhatsApp Media Manager" FontSize="16" Foreground="#ADB5BD" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
@@ -214,7 +259,7 @@
                             Style="{StaticResource ModernButton}"
                             Click="ConnectButton_Click"/>
                     <Button x:Name="LogoutButton" Content="Logout" 
-                            Style="{StaticResource DangerButton}"
+                            Style="{StaticResource RedButton}"
                             Click="LogoutButton_Click"
                             IsEnabled="{Binding IsConnected}"/>
                 </StackPanel>
@@ -234,7 +279,7 @@
                             Click="MonitorButton_Click"
                             IsEnabled="{Binding IsGroupsLoadedAndNotMonitoring}"/>
                     <Button x:Name="StopMonitorButton" Content="Stop Monitoring" 
-                            Style="{StaticResource DangerButton}"
+                            Style="{StaticResource RedButton}"
                             Click="StopMonitorButton_Click"
                             IsEnabled="{Binding IsMonitoring}"/>
                 </StackPanel>
@@ -247,18 +292,14 @@
                              Text="{Binding DownloadFolder}"/>
                     <Button Content="Browse" Style="{StaticResource ModernButton}"
                             Click="BrowseFolderButton_Click"/>
-                    <Button Content="Refresh" Style="{StaticResource ModernButton}"
-                            Click="RefreshButton_Click" Margin="5,0,0,0"/>
                 </StackPanel>
 
-                <!-- Media Processing Toggle -->
-                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="20,10,0,0">
-                    <RadioButton x:Name="MediaProcessingToggle" Content="Media Processing" 
-                                IsChecked="{Binding IsMediaProcessingEnabled}"
-                                VerticalAlignment="Center" Margin="0,0,10,0"
-                                Foreground="#495057" FontWeight="Medium"/>
-                    <TextBlock Text="Convert media to 16:9 with blur background" 
-                              VerticalAlignment="Center" Foreground="#6C757D" FontSize="12"/>
+                <!-- Replace Media Processing radio button with toggle switch -->
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,30,0,30">
+                    <ToggleButton x:Name="MediaProcessingToggle" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding IsMediaProcessingEnabled, Mode=TwoWay}"/>
+                    <Border x:Name="MediaProcLabelBorder" Margin="16,0,0,0" Padding="10,4" CornerRadius="8">
+                        <TextBlock Text="Media Processing" FontSize="20" VerticalAlignment="Center"/>
+                    </Border>
                 </StackPanel>
             </Grid>
         </Border>
@@ -291,16 +332,18 @@
                       MouseDoubleClick="MediaListView_MouseDoubleClick">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Thumbnail" Width="80">
+                        <GridViewColumn Header="Thumbnail" Width="100">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Grid Width="60" Height="40">
-                                        <Image Source="{Binding Thumbnail}" 
+                                    <Grid Width="100" Height="60">
+                                        <Image Source="{Binding Thumbnail}"
+                                               Width="100" Height="60"
                                                Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
                                                Visibility="{Binding Thumbnail, Converter={StaticResource NotNullToVis}}"/>
-                                        <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1" 
+                                        <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1"
+                                                Width="100" Height="60"
                                                 Visibility="{Binding Thumbnail, Converter={StaticResource NullToVis}}">
-                                            <TextBlock Text="{Binding Extension}" FontSize="8" 
+                                            <TextBlock Text="{Binding Extension}" FontSize="12"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        Foreground="#666666"/>
                                         </Border>
@@ -312,7 +355,7 @@
                         <GridViewColumn Header="Type" Width="100" DisplayMemberBinding="{Binding MediaType}"/>
                         <GridViewColumn Header="Size" Width="100" DisplayMemberBinding="{Binding FileSizeFormatted}"/>
                         <GridViewColumn Header="Date" Width="150" DisplayMemberBinding="{Binding TimestampFormatted}"/>
-                        <GridViewColumn Header="Sender" Width="150" DisplayMemberBinding="{Binding SenderName}"/>
+                        <GridViewColumn Header="Sender" Width="300" DisplayMemberBinding="{Binding SenderName}"/>
                     </GridView>
                 </ListView.View>
                 <ListView.ContextMenu>
