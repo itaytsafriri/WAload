@@ -21,6 +21,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Media.Animation;
 using System.Windows.Data;
 using System.Text.Json;
+using System.Threading;
 
 namespace WAload
 {
@@ -67,6 +68,24 @@ namespace WAload
         }
     }
 
+    public class ProgressToWidthConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            if (value is double progress)
+            {
+                // Convert progress (0.0 to 1.0) to percentage width
+                return Math.Max(0, Math.Min(100, progress * 100));
+            }
+            return 0.0;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly IWhatsAppService _whatsAppService;
@@ -83,7 +102,15 @@ namespace WAload
         private FileSystemWatcher? _fileWatcher;
         private System.Threading.Timer? _refreshTimer;
         private bool _refreshPending = false;
-
+        private bool _isMediaProcessingEnabled = false;
+        private bool _isProcessingMedia = false;
+        private string _processingFileName = string.Empty;
+        private double _processingProgress = 0.0;
+        private string _processingProgressText = string.Empty;
+        private System.Threading.Timer? _processingTimeoutTimer;
+        private CancellationTokenSource? _processingCancellationTokenSource;
+        private readonly string _tempProcessingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAloadTemp");
+        
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
 
@@ -161,6 +188,71 @@ namespace WAload
         public bool IsGroupsLoadedAndNotMonitoring => IsGroupsLoaded && !IsMonitoring;
 
         public string ConnectionStatus => IsConnected ? "Connected" : "Disconnected";
+
+        public bool IsMediaProcessingEnabled
+        {
+            get => _isMediaProcessingEnabled;
+            set
+            {
+                if (_isMediaProcessingEnabled != value)
+                {
+                    _isMediaProcessingEnabled = value;
+                    OnPropertyChanged(nameof(IsMediaProcessingEnabled));
+                }
+            }
+        }
+
+        public bool IsProcessingMedia
+        {
+            get => _isProcessingMedia;
+            set
+            {
+                if (_isProcessingMedia != value)
+                {
+                    _isProcessingMedia = value;
+                    OnPropertyChanged(nameof(IsProcessingMedia));
+                }
+            }
+        }
+
+        public string ProcessingFileName
+        {
+            get => _processingFileName;
+            set
+            {
+                if (_processingFileName != value)
+                {
+                    _processingFileName = value;
+                    OnPropertyChanged(nameof(ProcessingFileName));
+                }
+            }
+        }
+
+        public double ProcessingProgress
+        {
+            get => _processingProgress;
+            set
+            {
+                if (_processingProgress != value)
+                {
+                    _processingProgress = value;
+                    OnPropertyChanged(nameof(ProcessingProgress));
+                }
+            }
+        }
+
+        public string ProcessingProgressText
+        {
+            get => _processingProgressText;
+            set
+            {
+                if (_processingProgressText != value)
+                {
+                    _processingProgressText = value;
+                    OnPropertyChanged(nameof(ProcessingProgressText));
+                }
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -309,14 +401,22 @@ namespace WAload
 
         private void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
         {
-            using var dialog = new FolderBrowserDialog();
-            dialog.Description = "Select download folder";
-            dialog.SelectedPath = DownloadFolder;
-            
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Select Download Folder",
+                ShowNewFolderButton = true
+            };
+
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 DownloadFolder = dialog.SelectedPath;
             }
+        }
+
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("Manual refresh triggered by user");
+            LoadExistingMedia();
         }
 
 
@@ -574,6 +674,12 @@ namespace WAload
                 // Write file
                 await File.WriteAllBytesAsync(filePath, mediaData);
                 
+                // Process media if enabled
+                if (IsMediaProcessingEnabled)
+                {
+                    await ProcessMediaFileAsync(filePath, mediaMessage.Type);
+                }
+                
                 // Create media item
                 var mediaItem = new MediaItem
                 {
@@ -596,6 +702,159 @@ namespace WAload
             {
                 System.Diagnostics.Debug.WriteLine($"Error downloading media: {ex.Message}");
                 return null;
+            }
+        }
+
+        private async Task ProcessMediaFileAsync(string originalFilePath, string mediaType)
+        {
+            // Create cancellation token source for this processing operation
+            _processingCancellationTokenSource?.Dispose();
+            _processingCancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _processingCancellationTokenSource.Token;
+
+            // Add debug logging to track cancellation
+            var cancellationRegistration = cancellationToken.Register(() =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Cancellation token was cancelled for: {Path.GetFileName(originalFilePath)}");
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Stack trace: {Environment.StackTrace}");
+            });
+
+            try
+            {
+                // Check if this is a processable media type
+                var extension = Path.GetExtension(originalFilePath).ToLowerInvariant();
+                var isProcessable = extension == ".jpg" || extension == ".jpeg" || extension == ".png" || 
+                                   extension == ".bmp" || extension == ".gif" || extension == ".mp4" || 
+                                   extension == ".avi" || extension == ".mov" || extension == ".wmv";
+
+                if (!isProcessable)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping non-processable file: {Path.GetFileName(originalFilePath)}");
+                    return;
+                }
+
+                // IMPORTANT: Skip files that already have _processed in their name to prevent infinite loops
+                if (Path.GetFileName(originalFilePath).Contains("_processed"))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping already processed file: {Path.GetFileName(originalFilePath)}");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Starting processing for: {Path.GetFileName(originalFilePath)}");
+
+                // Show progress overlay
+                Dispatcher.Invoke(() =>
+                {
+                    IsProcessingMedia = true;
+                    ProcessingFileName = Path.GetFileName(originalFilePath);
+                    ProcessingProgress = 0.0;
+                    ProcessingProgressText = "Initializing...";
+                    
+                    // Update window title to indicate processing
+                    Title = $"WAload - Processing {Path.GetFileName(originalFilePath)}...";
+                    
+                    // Start the rotation animation
+                    var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+                    storyboard?.Begin();
+                });
+
+                // Create processed filename
+                var fileName = Path.GetFileNameWithoutExtension(originalFilePath);
+                var newFileName = $"{fileName}_processed{extension}";
+                var processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
+
+                // Ensure unique filename
+                var counter = 1;
+                while (File.Exists(processedFilePath))
+                {
+                    newFileName = $"{fileName}_processed_{counter}{extension}";
+                    processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
+                    counter++;
+                }
+
+                // Process the file - let it complete naturally
+                var success = await _videoProcessingService.ConvertTo16x9WithBlurredBackground(
+                    originalFilePath, 
+                    processedFilePath,
+                    progress => 
+                    {
+                        // Update progress overlay
+                        Dispatcher.Invoke(() =>
+                        {
+                            ProcessingProgress = progress;
+                            ProcessingProgressText = $"Processing... {(progress * 100):F0}%";
+                        });
+                    },
+                    cancellationToken);
+
+                // CRITICAL FIX: Check if processed file exists, regardless of success flag
+                var processedFileExists = File.Exists(processedFilePath);
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Processed file exists: {processedFileExists}, Success flag: {success}");
+
+                if (processedFileExists)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Successfully processed: {Path.GetFileName(originalFilePath)}");
+                    
+                    // Generate thumbnail for the processed file
+                    var processedMediaItem = new MediaItem
+                    {
+                        FilePath = processedFilePath,
+                        FileName = Path.GetFileName(processedFilePath),
+                        MediaType = GetMediaType(Path.GetExtension(processedFilePath)),
+                        SenderName = "Locally Added",
+                        GroupId = "",
+                        Timestamp = DateTime.Now
+                    };
+
+                    // Generate thumbnail asynchronously
+                    _ = Task.Run(async () => await GenerateThumbnailAsync(processedMediaItem));
+
+                    // Schedule refresh to update UI
+                    ScheduleRefresh();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Failed to process: {Path.GetFileName(originalFilePath)}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Processing was cancelled for: {Path.GetFileName(originalFilePath)}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Error processing {Path.GetFileName(originalFilePath)}: {ex.Message}");
+            }
+            finally
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Entering finally block - hiding modal");
+                
+                // Dispose of the timeout timer
+                _processingTimeoutTimer?.Dispose();
+                _processingTimeoutTimer = null;
+                
+                // Dispose of the cancellation token source
+                _processingCancellationTokenSource?.Dispose();
+                _processingCancellationTokenSource = null;
+                
+                // Dispose of the cancellation registration
+                cancellationRegistration.Dispose();
+                
+                // Hide the progress overlay
+                Dispatcher.Invoke(() =>
+                {
+                    IsProcessingMedia = false;
+                    ProcessingFileName = string.Empty;
+                    ProcessingProgress = 0.0;
+                    ProcessingProgressText = string.Empty;
+                    
+                    // Restore window title
+                    Title = "WAload";
+                    
+                    // Stop the rotation animation
+                    var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+                    storyboard?.Stop();
+                });
             }
         }
 
@@ -632,13 +891,47 @@ namespace WAload
             var invalidChars = Path.GetInvalidFileNameChars();
             fileName = invalidChars.Aggregate(fileName, (current, c) => current.Replace(c, '_'));
             
-            // Ensure it has the correct extension
-            if (!fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            return fileName + extension;
+        }
+
+        private string GetThumbnailsDirectory()
+        {
+            var thumbnailsDir = Path.Combine(DownloadFolder, ".thumbnails");
+            if (!Directory.Exists(thumbnailsDir))
             {
-                fileName += extension;
+                Directory.CreateDirectory(thumbnailsDir);
+                // Hide the directory using Windows API
+                try
+                {
+                    var dirInfo = new DirectoryInfo(thumbnailsDir);
+                    dirInfo.Attributes = dirInfo.Attributes | FileAttributes.Hidden | FileAttributes.System;
+                    
+                    // Also try to set it as a system folder
+                    System.Diagnostics.Debug.WriteLine($"Set thumbnails directory attributes: {dirInfo.Attributes}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not hide thumbnails directory: {ex.Message}");
+                }
             }
-            
-            return fileName;
+            else
+            {
+                // Ensure existing directory is hidden
+                try
+                {
+                    var dirInfo = new DirectoryInfo(thumbnailsDir);
+                    if ((dirInfo.Attributes & FileAttributes.Hidden) == 0)
+                    {
+                        dirInfo.Attributes = dirInfo.Attributes | FileAttributes.Hidden | FileAttributes.System;
+                        System.Diagnostics.Debug.WriteLine($"Updated thumbnails directory attributes: {dirInfo.Attributes}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not update thumbnails directory attributes: {ex.Message}");
+                }
+            }
+            return thumbnailsDir;
         }
 
         private async Task GenerateThumbnailAsync(MediaItem mediaItem)
@@ -705,7 +998,7 @@ namespace WAload
                     
                     try
                     {
-                        var thumbnailPath = Path.Combine(DownloadFolder, $"thumb_{Path.GetFileNameWithoutExtension(mediaItem.FileName)}.jpg");
+                        var thumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(mediaItem.FileName)}.jpg");
                         
                         // Check if thumbnail already exists
                         if (File.Exists(thumbnailPath))
@@ -840,34 +1133,173 @@ namespace WAload
             }
         }
         
-        private void OnFileCreated(object sender, FileSystemEventArgs e)
+        private bool IsFileReady(string filename)
         {
-            System.Diagnostics.Debug.WriteLine($"File created: {e.Name}");
-            
-            // Skip JSON files - they should not trigger UI updates
-            if (Path.GetExtension(e.Name).ToLower() == ".json")
+            // Try to open the file exclusively. If it fails, the file is still locked.
+            try
             {
-                System.Diagnostics.Debug.WriteLine($"Skipping JSON file creation event: {e.Name}");
+                using (FileStream inputStream = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    return true;
+                }
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }
+        
+        private void EnsureTempProcessingDir()
+        {
+            if (!Directory.Exists(_tempProcessingDir))
+            {
+                Directory.CreateDirectory(_tempProcessingDir);
+                // Set hidden attribute
+                var dirInfo = new DirectoryInfo(_tempProcessingDir);
+                dirInfo.Attributes |= FileAttributes.Hidden;
+            }
+        }
+        
+        private async void OnFileCreated(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                // Check if we're already processing media
+                if (IsProcessingMedia)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Already processing media, skipping: {e.Name}");
+                    return;
+                }
+
+                // Check if this file is currently being processed
+                if (ProcessingFileName == e.Name)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] File {e.Name} is currently being processed, skipping");
+                    return;
+                }
+
+                // Check if this is a media file we can process
+                var extension = Path.GetExtension(e.Name).ToLower();
+                if (!IsMediaFile(extension))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Skipping non-media file: {e.Name} (extension: {extension})");
+                    return;
+                }
+
+                // Skip processed files
+                if (e.Name.Contains("_processed"))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileCreated for processed file: {e.Name}");
+                    return;
+                }
+
+                // Wait until the file is ready (not locked)
+                int maxTries = 20;
+                int delayMs = 500;
+                int tries = 0;
+                while (!IsFileReady(e.FullPath) && tries < maxTries)
+                {
+                    await Task.Delay(delayMs);
+                    tries++;
+                }
+                if (!IsFileReady(e.FullPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] File {e.Name} is still locked after waiting, skipping");
+                    return;
+                }
+
+                // Ensure temp processing dir exists and is hidden
+                EnsureTempProcessingDir();
+
+                // Copy file to temp dir (do not move)
+                var tempFileName = Path.Combine(_tempProcessingDir, Path.GetFileName(e.FullPath));
+                try
+                {
+                    File.Copy(e.FullPath, tempFileName, overwrite: true);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Failed to copy file to temp dir: {ex.Message}");
+                    return;
+                }
+
+                // Trigger processing for the new file in temp dir
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Triggering processing for file in temp dir: {Path.GetFileName(tempFileName)}");
+                _ = Task.Run(async () =>
+                {
+                    await ProcessMediaFileAsync(tempFileName, GetMediaType(extension));
+                    // After processing, move processed file back to original folder
+                    var processedFileName = Path.GetFileNameWithoutExtension(tempFileName) + "_processed" + extension;
+                    var processedFilePath = Path.Combine(_tempProcessingDir, processedFileName);
+                    var destProcessedFilePath = Path.Combine(Path.GetDirectoryName(e.FullPath)!, processedFileName);
+                    if (File.Exists(processedFilePath))
+                    {
+                        try
+                        {
+                            File.Move(processedFilePath, destProcessedFilePath, overwrite: true);
+                            System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Moved processed file back to: {destProcessedFilePath}");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Failed to move processed file back: {ex.Message}");
+                        }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Error in OnFileCreated: {ex.Message}");
+            }
+        }
+        
+        private void OnFileDeleted(object sender, FileSystemEventArgs e)
+        {
+            // Skip processed files
+            if (e.Name.Contains("_processed"))
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileDeleted for processed file: {e.Name}");
                 return;
+            }
+            System.Diagnostics.Debug.WriteLine($"File deleted: {e.Name}");
+            
+            // Delete corresponding thumbnail if it exists
+            try
+            {
+                var thumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(e.Name)}.jpg");
+                if (File.Exists(thumbnailPath))
+                {
+                    File.Delete(thumbnailPath);
+                    System.Diagnostics.Debug.WriteLine($"Deleted thumbnail: {thumbnailPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error deleting thumbnail for {e.Name}: {ex.Message}");
             }
             
             ScheduleRefresh();
         }
         
-        private void OnFileDeleted(object sender, FileSystemEventArgs e)
-        {
-            System.Diagnostics.Debug.WriteLine($"File deleted: {e.Name}");
-            ScheduleRefresh();
-        }
-        
         private void OnFileRenamed(object sender, RenamedEventArgs e)
         {
+            // Skip processed files
+            if (e.Name.Contains("_processed") || e.OldName.Contains("_processed"))
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileRenamed for processed file: {e.OldName} -> {e.Name}");
+                return;
+            }
             System.Diagnostics.Debug.WriteLine($"File renamed: {e.OldName} -> {e.Name}");
             ScheduleRefresh();
         }
         
         private void OnFileChanged(object sender, FileSystemEventArgs e)
         {
+            // Skip processed files
+            if (e.Name.Contains("_processed"))
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileChanged for processed file: {e.Name}");
+                return;
+            }
             System.Diagnostics.Debug.WriteLine($"File changed: {e.Name}");
             ScheduleRefresh();
         }
@@ -920,6 +1352,23 @@ namespace WAload
                         continue;
                     }
                     
+                    // Skip thumbnail files
+                    if (fileInfo.Name.StartsWith("thumb_") || fileInfo.Extension.ToLower() == ".jpg" || fileInfo.Extension.ToLower() == ".png")
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Skipping thumbnail file: {fileInfo.Name}");
+                        continue;
+                    }
+                    
+                    // Skip hidden files and directories
+                    if (fileInfo.Name.StartsWith("."))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Skipping hidden file: {fileInfo.Name}");
+                        continue;
+                    }
+                    
+                    // Note: Processed files are now visible in UI since we use a separate temp directory
+                    // The infinite loop prevention is handled by using a separate temp directory
+                    
                     var mediaItem = new MediaItem
                     {
                         FileName = fileInfo.Name,
@@ -927,7 +1376,7 @@ namespace WAload
                         FileSize = fileInfo.Length,
                         Timestamp = fileInfo.CreationTime,
                         Extension = fileInfo.Extension,
-                        SenderName = "Locally Added" // Set sender for local files
+                        SenderName = fileInfo.Name.Contains("_processed") ? "Processed" : "Locally Added" // Distinguish processed files
                     };
                     
                     // Determine media type from extension
@@ -1088,6 +1537,8 @@ namespace WAload
                 var jsonFiles = Directory.GetFiles(DownloadFolder, "*.json", SearchOption.TopDirectoryOnly);
                 var mediaFiles = Directory.GetFiles(DownloadFolder, "*.*", SearchOption.TopDirectoryOnly)
                     .Where(f => !f.EndsWith(".json"))
+                    .Where(f => !Path.GetFileName(f).StartsWith("thumb_")) // Skip thumbnail files
+                    .Where(f => !Path.GetFileName(f).StartsWith(".")) // Skip hidden files
                     .Select(f => Path.GetFileNameWithoutExtension(f))
                     .ToHashSet();
                 
@@ -1128,7 +1579,7 @@ namespace WAload
                     {
                         if (mediaItem.IsVideo)
                         {
-                            var thumbnailPath = Path.Combine(DownloadFolder, $"thumb_{Path.GetFileNameWithoutExtension(mediaItem.FileName)}.jpg");
+                            var thumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(mediaItem.FileName)}.jpg");
                             if (!File.Exists(thumbnailPath))
                             {
                                 System.Diagnostics.Debug.WriteLine($"Regenerating missing thumbnail for video: {mediaItem.FileName}");
@@ -1311,12 +1762,75 @@ namespace WAload
             });
         }
 
+        private void CancelProcessingButton_Click(object sender, RoutedEventArgs e)
+        {
+            // CRITICAL FIX: Manual escape mechanism - hide the modal immediately
+            System.Diagnostics.Debug.WriteLine("[MediaProcessing] User cancelled processing - hiding modal");
+            
+            // Cancel the processing to prevent file locking
+            if (_processingCancellationTokenSource != null)
+            {
+                _processingCancellationTokenSource.Cancel();
+            }
+            _videoProcessingService.CancelCurrentProcessing();
+            
+            // Dispose of the timeout timer
+            _processingTimeoutTimer?.Dispose();
+            _processingTimeoutTimer = null;
+            
+            // Dispose of the cancellation token source
+            _processingCancellationTokenSource?.Dispose();
+            _processingCancellationTokenSource = null;
+            
+            IsProcessingMedia = false;
+            ProcessingFileName = string.Empty;
+            ProcessingProgress = 0.0;
+            ProcessingProgressText = string.Empty;
+            
+            // Restore window title
+            Title = "WAload";
+            
+            // Stop the rotation animation
+            var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+            storyboard?.Stop();
+            
+            StatusMessage = "Processing cancelled by user";
+        }
+
         private async void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
+            // If processing is active, prevent closing and show message
+            if (IsProcessingMedia)
+            {
+                e.Cancel = true;
+                var result = System.Windows.MessageBox.Show(
+                    "Processing is currently active. Closing now will cancel the operation and may result in incomplete files.\n\nDo you want to continue closing?",
+                    "Processing Active",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning);
+                
+                if (result == System.Windows.MessageBoxResult.Yes)
+                {
+                    // User confirmed - allow closing and cancel processing
+                    _processingCancellationTokenSource?.Cancel();
+                    _videoProcessingService.CancelCurrentProcessing();
+                }
+                else
+                {
+                    // User cancelled - keep application open
+                    return;
+                }
+            }
+
             if (_isLoggingOut)
                 return;
             e.Cancel = true;
             _isLoggingOut = true;
+            
+            // Cancel any ongoing processing to prevent file locking
+            _processingCancellationTokenSource?.Cancel();
+            _videoProcessingService.CancelCurrentProcessing();
+            
             ShowProgressModal("Logging out", "Logging out, please wait...");
             try
             {
@@ -1333,6 +1847,31 @@ namespace WAload
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        /// <summary>
+        /// Checks if a file extension represents a media file that can be processed
+        /// </summary>
+        private bool IsMediaFile(string extension)
+        {
+            var mediaExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".mp4", ".avi", ".mov", ".wmv" };
+            return mediaExtensions.Contains(extension.ToLower());
+        }
+
+        /// <summary>
+        /// Gets the media type from a file extension
+        /// </summary>
+        private string GetMediaType(string extension)
+        {
+            var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
+            var videoExtensions = new[] { ".mp4", ".avi", ".mov", ".wmv" };
+
+            if (imageExtensions.Contains(extension.ToLower()))
+                return "image";
+            else if (videoExtensions.Contains(extension.ToLower()))
+                return "video";
+            else
+                return "unknown";
         }
     }
 }

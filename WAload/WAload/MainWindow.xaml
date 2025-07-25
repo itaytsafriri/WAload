@@ -22,6 +22,12 @@
             <ColorAnimation Storyboard.TargetName="QrAnimatedBorder" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
                             From="#007ACC" To="#00CFFF" Duration="0:0:1"/>
         </Storyboard>
+
+        <!-- Processing Icon Rotation Animation -->
+        <Storyboard x:Key="ProcessingIconRotationAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="ProcessingIconRotation" Storyboard.TargetProperty="Angle"
+                            From="0" To="360" Duration="0:0:2"/>
+        </Storyboard>
         <!-- Modern Button Style -->
         <Style x:Key="ModernButton" TargetType="Button">
             <Setter Property="Background" Value="#007ACC"/>
@@ -127,6 +133,32 @@
             <Setter Property="Height" Value="12"/>
             <Setter Property="Margin" Value="5,0"/>
         </Style>
+
+        <!-- Modern Shadow Effect -->
+        <DropShadowEffect x:Key="ModernShadow" 
+                         Color="#20000000" 
+                         Direction="270" 
+                         ShadowDepth="8" 
+                         BlurRadius="20" 
+                         Opacity="0.3"/>
+
+        <!-- Text Shadow Effect -->
+        <DropShadowEffect x:Key="TextShadow" 
+                         Color="#000000" 
+                         Direction="270" 
+                         ShadowDepth="1" 
+                         BlurRadius="2" 
+                         Opacity="0.8"/>
+
+        <!-- Progress Gradient -->
+        <LinearGradientBrush x:Key="ProgressGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#4CAF50" Offset="0"/>
+            <GradientStop Color="#66BB6A" Offset="0.5"/>
+            <GradientStop Color="#81C784" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Progress to Width Converter -->
+        <local:ProgressToWidthConverter x:Key="ProgressToWidthConverter"/>
     </Window.Resources>
 
     <Window.Triggers>
@@ -215,6 +247,18 @@
                              Text="{Binding DownloadFolder}"/>
                     <Button Content="Browse" Style="{StaticResource ModernButton}"
                             Click="BrowseFolderButton_Click"/>
+                    <Button Content="Refresh" Style="{StaticResource ModernButton}"
+                            Click="RefreshButton_Click" Margin="5,0,0,0"/>
+                </StackPanel>
+
+                <!-- Media Processing Toggle -->
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="20,10,0,0">
+                    <RadioButton x:Name="MediaProcessingToggle" Content="Media Processing" 
+                                IsChecked="{Binding IsMediaProcessingEnabled}"
+                                VerticalAlignment="Center" Margin="0,0,10,0"
+                                Foreground="#495057" FontWeight="Medium"/>
+                    <TextBlock Text="Convert media to 16:9 with blur background" 
+                              VerticalAlignment="Center" Foreground="#6C757D" FontSize="12"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -296,6 +340,116 @@
             </StatusBarItem>
         </StatusBar>
 
+        <!-- Media Processing Progress Overlay -->
+        <Grid Grid.Row="0" Grid.RowSpan="4" 
+              Background="#80000000" 
+              Visibility="{Binding IsProcessingMedia, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="1000">
+            <Border Background="White" 
+                    CornerRadius="12" 
+                    Padding="30" 
+                    MaxWidth="400" 
+                    MaxHeight="300"
+                    HorizontalAlignment="Center" 
+                    VerticalAlignment="Center"
+                    Effect="{StaticResource ModernShadow}">
+                <StackPanel>
+                    <!-- Processing Icon -->
+                    <Grid Width="60" Height="60" Margin="0,0,0,20" HorizontalAlignment="Center">
+                        <Ellipse Fill="#E3F2FD" Stroke="#2196F3" StrokeThickness="2"/>
+                        <Path Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z" 
+                              Fill="#2196F3" 
+                              Width="30" Height="30" 
+                              HorizontalAlignment="Center" 
+                              VerticalAlignment="Center">
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="ProcessingIconRotation" CenterX="15" CenterY="15"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Grid>
+
+                    <!-- Title -->
+                    <TextBlock Text="Processing Media" 
+                              FontSize="18" 
+                              FontWeight="SemiBold" 
+                              HorizontalAlignment="Center" 
+                              Margin="0,0,0,10"
+                              Foreground="#212121"/>
+
+                    <!-- File Name -->
+                    <TextBlock Text="{Binding ProcessingFileName}" 
+                              FontSize="14" 
+                              HorizontalAlignment="Center" 
+                              Margin="0,0,0,15"
+                              Foreground="#666666"
+                              TextWrapping="Wrap"
+                              MaxWidth="300"/>
+
+                    <!-- Progress Bar -->
+                    <Border Background="#E0E0E0" 
+                            Height="12" 
+                            CornerRadius="6" 
+                            Margin="0,0,0,15"
+                            Effect="{StaticResource ModernShadow}">
+                        <Grid>
+                            <!-- Background -->
+                            <Border Background="#F5F5F5" CornerRadius="6"/>
+
+                            <!-- Progress Fill -->
+                            <Border x:Name="ProgressFill" 
+                                    Background="{StaticResource ProgressGradient}" 
+                                    CornerRadius="6" 
+                                    HorizontalAlignment="Center"
+                                    Width="{Binding ProcessingProgress, Converter={StaticResource ProgressToWidthConverter}}" Margin="0,-24,0,24">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#4CAF50" BlurRadius="8" ShadowDepth="2" Opacity="0.6"/>
+                                </Border.Effect>
+                            </Border>
+
+                            <!-- Progress Text Overlay -->
+                            <TextBlock Text="{Binding ProcessingProgressText}" 
+                                      FontSize="10" 
+                                      FontWeight="Bold"
+                                      Foreground="White"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Top"
+                                      Effect="{StaticResource TextShadow}" Margin="0,-3,0,0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Cancel Button -->
+                    <Button Content="Cancel Processing" 
+                            Background="#F44336" 
+                            Foreground="White"
+                            BorderThickness="0"
+                            Padding="15,8"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            HorizontalAlignment="Center"
+                            Click="CancelProcessingButton_Click"
+                            Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" 
+                                        CornerRadius="6" 
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#D32F2F"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#B71C1C"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- QR Code Dialog -->
         <Border x:Name="QrCodeOverlay" Grid.RowSpan="4" 
                 Background="#80000000" Visibility="Collapsed">
@@ -334,12 +488,12 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    
+
                     <!-- App Icon -->
                     <Image Grid.Column="0" Source="pack://application:,,,/images/icon.ico" 
                            Width="96" Height="96" Margin="0,0,20,0" 
                            VerticalAlignment="Top"/>
-                    
+
                     <!-- Content -->
                     <StackPanel Grid.Column="1">
                         <TextBlock x:Name="ProgressTitle" Text="Processing..." FontSize="18" FontWeight="Bold" 
