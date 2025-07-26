@@ -1,0 +1,125 @@
+<Window x:Class="WALoad_Key_Generator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WALoad Key Generator" Height="700" Width="800" 
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize">
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#007ACC" CornerRadius="8" Margin="0,0,0,20">
+            <TextBlock Text="WALoad License Key Generator" 
+                       FontSize="24" FontWeight="Bold" 
+                       Foreground="White" 
+                       HorizontalAlignment="Center" 
+                       Padding="20,15"/>
+        </Border>
+        
+        <!-- Machine ID Section -->
+        <GroupBox Grid.Row="1" Header="Machine ID" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBox x:Name="MachineIdTextBox" Grid.Column="0" 
+                         Text="Click 'Generate Machine ID' or paste a Machine ID from WAload"/>
+                
+                <Button x:Name="GenerateMachineIdButton" Grid.Column="1" 
+                        Content="Generate Machine ID" 
+                        Click="GenerateMachineIdButton_Click"/>
+                
+                <Button x:Name="CopyMachineIdButton" Grid.Column="2" 
+                        Content="Copy" 
+                        Click="CopyMachineIdButton_Click"/>
+                <Button x:Name="PasteMachineIdButton" Grid.Column="3" 
+                        Content="Paste" 
+                        Margin="5,0,0,0"
+                        Click="PasteMachineIdButton_Click"/>
+            </Grid>
+        </GroupBox>
+        
+        <!-- Expiry Date Section -->
+        <GroupBox Grid.Row="2" Header="License Expiry Date" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" Text="Expiry Date:" VerticalAlignment="Center"/>
+                
+                <DatePicker x:Name="ExpiryDatePicker" Grid.Column="1" 
+                           SelectedDateChanged="ExpiryDatePicker_SelectedDateChanged"/>
+                
+                <Button x:Name="SetExpiryButton" Grid.Column="2" 
+                        Content="Set Expiry" 
+                        Click="SetExpiryButton_Click"/>
+            </Grid>
+        </GroupBox>
+        
+        <!-- Features Section -->
+        <GroupBox Grid.Row="3" Header="License Features" Margin="0,0,0,10">
+            <WrapPanel>
+                <CheckBox x:Name="FeatureBasicCheckBox" Content="Basic Features" IsChecked="True"/>
+                <CheckBox x:Name="FeatureMediaProcessingCheckBox" Content="Media Processing" IsChecked="True"/>
+                <CheckBox x:Name="FeatureAdvancedCheckBox" Content="Advanced Features" IsChecked="True"/>
+                <CheckBox x:Name="FeatureUnlimitedCheckBox" Content="Unlimited Usage" IsChecked="True"/>
+            </WrapPanel>
+        </GroupBox>
+        
+        <!-- Generate License Section -->
+        <GroupBox Grid.Row="4" Header="Generate License Key" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBox x:Name="LicenseKeyTextBox" Grid.Column="0" 
+                         IsReadOnly="True" 
+                         Text="Click 'Generate License Key' to create a license"/>
+                
+                <Button x:Name="GenerateLicenseKeyButton" Grid.Column="1" 
+                        Content="Generate License Key" 
+                        Click="GenerateLicenseKeyButton_Click"/>
+                
+                <Button x:Name="CopyLicenseKeyButton" Grid.Column="2" 
+                        Content="Copy" 
+                        Click="CopyLicenseKeyButton_Click"/>
+            </Grid>
+        </GroupBox>
+        
+        <!-- Output Log -->
+        <GroupBox Grid.Row="5" Header="Output Log" Margin="0,0,0,10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox x:Name="OutputTextBox" 
+                         IsReadOnly="True" 
+                         TextWrapping="Wrap" 
+                         VerticalAlignment="Stretch"
+                         FontFamily="Consolas"
+                         FontSize="10"
+                         Background="#F8F8F8"/>
+            </ScrollViewer>
+        </GroupBox>
+        
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Button x:Name="ClearButton" Content="Clear All" Click="ClearButton_Click"/>
+            <Button x:Name="ExitButton" Content="Exit" Click="ExitButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window> 

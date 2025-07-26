@@ -110,6 +110,7 @@ namespace WAload
         private System.Threading.Timer? _processingTimeoutTimer;
         private CancellationTokenSource? _processingCancellationTokenSource;
         private readonly string _tempProcessingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAloadTemp");
+        private bool _isLicenseValid = false;
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -282,6 +283,19 @@ namespace WAload
 
         public bool IsGroupSelectionEnabled => IsConnected && !IsMonitoring;
 
+        public bool IsLicenseValid
+        {
+            get => _isLicenseValid;
+            set
+            {
+                if (_isLicenseValid != value)
+                {
+                    _isLicenseValid = value;
+                    OnPropertyChanged(nameof(IsLicenseValid));
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public MainWindow()
@@ -320,6 +334,9 @@ namespace WAload
             SetupEventHandlers();
             LoadExistingMedia();
             SetupFileWatcher();
+            
+            // Check license on startup
+            CheckLicense();
 
             // In MainWindow constructor or OnLoaded, hook up the toggle and animation
             Loaded += (s, e) =>
@@ -375,6 +392,116 @@ namespace WAload
             _whatsAppService.GroupsUpdated += OnGroupsUpdated;
             _whatsAppService.MediaMessageReceived += OnMediaMessageReceived;
             _whatsAppService.MonitoringStatusChanged += OnMonitoringStatusChanged;
+        }
+
+        private void CheckLicense()
+        {
+            try
+            {
+                var licenseService = new Services.LicenseService();
+                var result = licenseService.ValidateLicense();
+                
+                if (!result.IsValid)
+                {
+                    IsLicenseValid = false;
+                    // Show license modal
+                    var licenseModal = new LicenseModal();
+                    licenseModal.LicenseValidated += (s, e) => IsLicenseValid = true;
+                    licenseModal.ShowDialog();
+                    
+                    // If license is still not valid after modal, exit
+                    if (!licenseModal.IsLicenseValid)
+                    {
+                        System.Windows.Application.Current.Shutdown();
+                    }
+                    else
+                    {
+                        IsLicenseValid = true;
+                    }
+                }
+                else
+                {
+                    IsLicenseValid = true;
+                    System.Diagnostics.Debug.WriteLine($"[License] {result.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                IsLicenseValid = false;
+                System.Diagnostics.Debug.WriteLine($"[License] Error checking license: {ex.Message}");
+                // Show license modal on error
+                var licenseModal = new LicenseModal();
+                licenseModal.LicenseValidated += (s, e) => IsLicenseValid = true;
+                licenseModal.ShowDialog();
+                
+                if (!licenseModal.IsLicenseValid)
+                {
+                    System.Windows.Application.Current.Shutdown();
+                }
+                else
+                {
+                    IsLicenseValid = true;
+                }
+            }
+        }
+
+        private void LicenseIndicator_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            try
+            {
+                var licenseService = new Services.LicenseService();
+                var result = licenseService.ValidateLicense();
+                
+                if (result.IsValid && result.LicenseData != null)
+                {
+                    // Show current license info
+                    var message = $"Current License Status:\n\n" +
+                                 $"Machine ID: {licenseService.GetCurrentMachineId()}\n" +
+                                 $"Expiry Date: {result.LicenseData.ExpiryDate:yyyy-MM-dd}\n" +
+                                 $"Features: {string.Join(", ", result.LicenseData.Features)}\n\n" +
+                                 $"Would you like to change the license?";
+                    
+                    var response = System.Windows.MessageBox.Show(message, "License Information", 
+                        System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Information);
+                    
+                    if (response == System.Windows.MessageBoxResult.Yes)
+                    {
+                        // Show license modal to change license
+                        var licenseModal = new LicenseModal();
+                        licenseModal.LicenseValidated += (s, e) => IsLicenseValid = true;
+                        licenseModal.ShowDialog();
+                        
+                        // Update license status after modal
+                        var newResult = licenseService.ValidateLicense();
+                        IsLicenseValid = newResult.IsValid;
+                        
+                        if (!newResult.IsValid)
+                        {
+                            System.Windows.Application.Current.Shutdown();
+                        }
+                    }
+                }
+                else
+                {
+                    // Show license modal to enter license
+                    var licenseModal = new LicenseModal();
+                    licenseModal.LicenseValidated += (s, e) => IsLicenseValid = true;
+                    licenseModal.ShowDialog();
+                    
+                    var newResult = licenseService.ValidateLicense();
+                    IsLicenseValid = newResult.IsValid;
+                    
+                    if (!newResult.IsValid)
+                    {
+                        System.Windows.Application.Current.Shutdown();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Error accessing license: {ex.Message}", "License Error", 
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
         }
 
         private void StartConnectButtonFlash()

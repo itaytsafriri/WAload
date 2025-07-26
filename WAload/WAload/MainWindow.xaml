@@ -265,7 +265,23 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Style="{StaticResource StatusIndicator}" Fill="{Binding IsConnected, Converter={StaticResource BoolToVis}}"/>
-                    <TextBlock Text="{Binding ConnectionStatus}" Foreground="White" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding ConnectionStatus}" Foreground="White" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    
+                    <!-- License Status Indicator -->
+                    <Border x:Name="LicenseIndicator" 
+                            Background="#28A745" 
+                            CornerRadius="4" 
+                            Padding="8,4" 
+                            Margin="0,0,0,0"
+                            Cursor="Hand"
+                            MouseRightButtonDown="LicenseIndicator_MouseRightButtonDown"
+                            ToolTip="Right-click to view/change license"
+                            Visibility="{Binding IsLicenseValid, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0"/>
+                            <TextBlock Text="Licensed" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Grid>
         </Border>
