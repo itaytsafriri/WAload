@@ -451,42 +451,64 @@ function setupEventListeners() {
         
         try {
             const chat = await msg.getChat();
-            if (chat.id._serialized === selectedGroupId && msg.hasMedia) {
-                log('Media message received from monitored group');
-                
-                const media = await msg.downloadMedia();
-                if (media) {
-                    const mediaType = media.mimetype.split('/')[0];
-                    // Only process image, video, audio, and voice messages
-                    if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
-                        const contact = await msg.getContact();
-                        const timestamp = new Date(msg.timestamp * 1000).toISOString()
-                            .replace(/[-:]/g, '')
-                            .split('.')[0]
-                            .replace('T', '_');
-                        const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
-                            .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
-                            .replace(/\s+/g, '_') // Replace spaces with underscores
-                            .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
-                            .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
-                        const extension = media.mimetype.split('/')[1];
-                        
-                        log(`Sending media to host - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
-                        sendToHost({
-                            type: 'media',
-                            Media: {
-                                Id: msg.id.id,
-                                From: msg.from,
-                                Author: msg.author,
-                                Type: media.mimetype,
-                                Timestamp: msg.timestamp,
-                                Filename: `${senderName}_${timestamp}.${extension}`,
-                                Data: media.data,
-                                Size: media.size,
-                                SenderName: contact.pushname || contact.name || contact.number
-                            }
-                        });
+            if (chat.id._serialized === selectedGroupId) {
+                // Handle media messages
+                if (msg.hasMedia) {
+                    log('Media message received from monitored group');
+                    
+                    const media = await msg.downloadMedia();
+                    if (media) {
+                        const mediaType = media.mimetype.split('/')[0];
+                        // Only process image, video, audio, and voice messages
+                        if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
+                            const contact = await msg.getContact();
+                            const timestamp = new Date(msg.timestamp * 1000).toISOString()
+                                .replace(/[-:]/g, '')
+                                .split('.')[0]
+                                .replace('T', '_');
+                            const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
+                                .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
+                                .replace(/\s+/g, '_') // Replace spaces with underscores
+                                .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
+                                .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+                            const extension = media.mimetype.split('/')[1];
+                            
+                            log(`Sending media to host - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
+                            sendToHost({
+                                type: 'media',
+                                Media: {
+                                    Id: msg.id.id,
+                                    From: msg.from,
+                                    Author: msg.author,
+                                    Type: media.mimetype,
+                                    Timestamp: msg.timestamp,
+                                    Filename: `${senderName}_${timestamp}.${extension}`,
+                                    Data: media.data,
+                                    Size: media.size,
+                                    SenderName: contact.pushname || contact.name || contact.number
+                                }
+                            });
+                        }
                     }
+                }
+                // Handle text messages
+                else if (msg.body && msg.body.trim()) {
+                    log('Text message received from monitored group');
+                    
+                    const contact = await msg.getContact();
+                    log(`Sending text message to host - Text: ${msg.body.substring(0, 100)}...`);
+                    sendToHost({
+                        type: 'text',
+                        Text: {
+                            Id: msg.id.id,
+                            From: msg.from,
+                            Author: msg.author,
+                            Type: 'text',
+                            Timestamp: msg.timestamp,
+                            Text: msg.body,
+                            SenderName: contact.pushname || contact.name || contact.number
+                        }
+                    });
                 }
             }
         } catch (e) {
@@ -500,42 +522,64 @@ function setupEventListeners() {
         
         try {
             const chat = await msg.getChat();
-            if (chat.id._serialized === selectedGroupId && msg.hasMedia) {
-                log('Media message received from monitored group (message_create)');
-                
-                const media = await msg.downloadMedia();
-                if (media) {
-                    const mediaType = media.mimetype.split('/')[0];
-                    // Only process image, video, audio, and voice messages
-                    if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
-                        const contact = await msg.getContact();
-                        const timestamp = new Date(msg.timestamp * 1000).toISOString()
-                            .replace(/[-:]/g, '')
-                            .split('.')[0]
-                            .replace('T', '_');
-                        const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
-                            .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
-                            .replace(/\s+/g, '_') // Replace spaces with underscores
-                            .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
-                            .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
-                        const extension = media.mimetype.split('/')[1];
-                        
-                        log(`Sending media to host (message_create) - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
-                        sendToHost({
-                            type: 'media',
-                            Media: {
-                                Id: msg.id.id,
-                                From: msg.from,
-                                Author: msg.author,
-                                Type: media.mimetype,
-                                Timestamp: msg.timestamp,
-                                Filename: `${senderName}_${timestamp}.${extension}`,
-                                Data: media.data,
-                                Size: media.size,
-                                SenderName: contact.pushname || contact.name || contact.number
-                            }
-                        });
+            if (chat.id._serialized === selectedGroupId) {
+                // Handle media messages
+                if (msg.hasMedia) {
+                    log('Media message received from monitored group (message_create)');
+                    
+                    const media = await msg.downloadMedia();
+                    if (media) {
+                        const mediaType = media.mimetype.split('/')[0];
+                        // Only process image, video, audio, and voice messages
+                        if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
+                            const contact = await msg.getContact();
+                            const timestamp = new Date(msg.timestamp * 1000).toISOString()
+                                .replace(/[-:]/g, '')
+                                .split('.')[0]
+                                .replace('T', '_');
+                            const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
+                                .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
+                                .replace(/\s+/g, '_') // Replace spaces with underscores
+                                .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
+                                .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+                            const extension = media.mimetype.split('/')[1];
+                            
+                            log(`Sending media to host (message_create) - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
+                            sendToHost({
+                                type: 'media',
+                                Media: {
+                                    Id: msg.id.id,
+                                    From: msg.from,
+                                    Author: msg.author,
+                                    Type: media.mimetype,
+                                    Timestamp: msg.timestamp,
+                                    Filename: `${senderName}_${timestamp}.${extension}`,
+                                    Data: media.data,
+                                    Size: media.size,
+                                    SenderName: contact.pushname || contact.name || contact.number
+                                }
+                            });
+                        }
                     }
+                }
+                // Handle text messages
+                else if (msg.body && msg.body.trim()) {
+                    log('Text message received from monitored group (message_create)');
+                    
+                    const contact = await msg.getContact();
+                    log(`Sending text message to host (message_create) - Text: ${msg.body.substring(0, 100)}...`);
+                    sendToHost({
+                        type: 'text',
+                        Text: {
+                            Id: msg.id.id,
+                            From: msg.from,
+                            Author: msg.author,
+                            Type: 'text',
+                            Timestamp: msg.timestamp,
+                            Text: msg.body,
+                            SenderName: contact.pushname || contact.name || contact.number
+                        }
+                    });
                 }
             }
         } catch (e) {

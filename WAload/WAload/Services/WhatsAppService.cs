@@ -20,6 +20,7 @@ namespace WAload.Services
         public event EventHandler<string>? UserNameReceived;
         public event EventHandler<List<WhatsGroup>>? GroupsUpdated;
         public event EventHandler<MediaMessage>? MediaMessageReceived;
+        public event EventHandler<TextMessage>? TextMessageReceived;
         public event EventHandler<bool>? MonitoringStatusChanged;
 
         public bool IsConnected => _isConnected;
@@ -237,6 +238,30 @@ namespace WAload.Services
                         else
                         {
                             System.Diagnostics.Debug.WriteLine("Media object is null - cannot process media message");
+                        }
+                        break;
+                    case "text":
+                        System.Diagnostics.Debug.WriteLine($"Text message case triggered - Text object is {(message.Text != null ? "not null" : "null")}");
+                        if (message.Text != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Raw Text object - Id: '{message.Text.Id}', From: '{message.Text.From}', Text: '{message.Text.Text?.Substring(0, Math.Min(100, message.Text.Text?.Length ?? 0))}...'");
+                            
+                            var textMessage = new TextMessage
+                            {
+                                Id = message.Text.Id ?? string.Empty,
+                                From = message.Text.From ?? string.Empty,
+                                Author = message.Text.Author ?? string.Empty,
+                                Type = message.Text.Type ?? string.Empty,
+                                Timestamp = message.Text.Timestamp ?? 0,
+                                Text = message.Text.Text ?? string.Empty,
+                                SenderName = message.Text.SenderName ?? string.Empty
+                            };
+                            System.Diagnostics.Debug.WriteLine($"Text message received: {textMessage.Text.Substring(0, Math.Min(100, textMessage.Text.Length))}... (From: {textMessage.SenderName})");
+                            TextMessageReceived?.Invoke(this, textMessage);
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("Text object is null - cannot process text message");
                         }
                         break;
                     case "monitoringStatus":

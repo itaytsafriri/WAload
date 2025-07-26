@@ -23,6 +23,9 @@ namespace WAload.Models
         [JsonPropertyName("Media")]
         public MediaInfo? Media { get; set; }
 
+        [JsonPropertyName("Text")]
+        public TextInfo? Text { get; set; }
+
         [JsonPropertyName("monitoring")]
         public bool? Monitoring { get; set; }
     }
@@ -61,6 +64,30 @@ namespace WAload.Models
 
         [JsonPropertyName("Size")]
         public long? Size { get; set; }
+
+        [JsonPropertyName("SenderName")]
+        public string? SenderName { get; set; }
+    }
+
+    public class TextInfo
+    {
+        [JsonPropertyName("Id")]
+        public string? Id { get; set; }
+
+        [JsonPropertyName("From")]
+        public string? From { get; set; }
+
+        [JsonPropertyName("Author")]
+        public string? Author { get; set; }
+
+        [JsonPropertyName("Type")]
+        public string? Type { get; set; }
+
+        [JsonPropertyName("Timestamp")]
+        public long? Timestamp { get; set; }
+
+        [JsonPropertyName("Text")]
+        public string? Text { get; set; }
 
         [JsonPropertyName("SenderName")]
         public string? SenderName { get; set; }

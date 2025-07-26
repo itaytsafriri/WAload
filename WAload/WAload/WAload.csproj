@@ -8,6 +8,21 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>images\icon.ico</ApplicationIcon>
+    
+    <!-- Self-contained deployment settings -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishTrimmed>false</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    
+    <!-- Assembly information -->
+    <AssemblyTitle>WAload</AssemblyTitle>
+    <AssemblyDescription>WhatsApp Media Downloader</AssemblyDescription>
+    <AssemblyCompany>WAload</AssemblyCompany>
+    <AssemblyProduct>WAload</AssemblyProduct>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
 
@@ -17,6 +32,7 @@
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Management" Version="9.0.7" />
     <PackageReference Include="Xabe.FFmpeg" Version="6.0.1" />
+    <PackageReference Include="YamlDotNet" Version="13.6.0" />
   </ItemGroup>
 
   <ItemGroup>

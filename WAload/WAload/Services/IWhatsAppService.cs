@@ -12,6 +12,7 @@ namespace WAload.Services
         event EventHandler<string>? UserNameReceived;
         event EventHandler<List<WhatsGroup>>? GroupsUpdated;
         event EventHandler<MediaMessage>? MediaMessageReceived;
+        event EventHandler<TextMessage>? TextMessageReceived;
         event EventHandler<bool>? MonitoringStatusChanged;
 
         Task InitializeAsync();

@@ -14,11 +14,11 @@ namespace WAload.Services
         public VideoProcessingService()
         {
             // Get the directory where the current assembly is located
-            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            var assemblyDirectory = Path.GetDirectoryName(assemblyLocation);
+            // Use AppContext.BaseDirectory for single-file apps
+            var assemblyDirectory = AppContext.BaseDirectory;
             
             // Construct path to ffmpeg executable
-            _ffmpegPath = Path.Combine(assemblyDirectory ?? "", "ffmpeg", "ffmpeg.exe");
+            _ffmpegPath = Path.Combine(assemblyDirectory, "ffmpeg", "ffmpeg.exe");
             
             if (!File.Exists(_ffmpegPath))
             {
@@ -188,14 +188,43 @@ namespace WAload.Services
                     var stdOutTask = blurProcess.StandardOutput.ReadToEndAsync();
                     var stdErrTask = blurProcess.StandardError.ReadToEndAsync();
 
-                    // Wait for FFmpeg to finish
-                    blurProcess.WaitForExit();
+                    // Start progress monitoring task
+                    var progressTask = Task.Run(async () =>
+                    {
+                        var lastProgress = 0.2; // Start at 20%
+                        while (!blurProcess.HasExited && !cancellationToken.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                // Simulate progress based on time elapsed
+                                var elapsed = DateTime.Now - blurProcess.StartTime;
+                                var estimatedDuration = TimeSpan.FromSeconds(60); // Estimate 60 seconds for video conversion
+                                var currentProgress = Math.Min(0.2 + (elapsed.TotalMilliseconds / estimatedDuration.TotalMilliseconds) * 0.6, 0.8);
+                                
+                                if (currentProgress > lastProgress + 0.05) // Update every 5%
+                                {
+                                    lastProgress = currentProgress;
+                                    progress?.Invoke(currentProgress);
+                                }
+                                
+                                await Task.Delay(500, cancellationToken); // Check every half second
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                break;
+                            }
+                        }
+                    });
+
+                    // Wait for FFmpeg to finish asynchronously
+                    await blurProcess.WaitForExitAsync(cancellationToken);
+                    await progressTask; // Wait for progress monitoring to complete
                     await stdOutTask;
                     var stdErr = await stdErrTask;
 
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg exited with code: {blurProcess.ExitCode}");
                     if (blurProcess.ExitCode != 0)
-                        {
+                    {
                         System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg error output: {stdErr}");
                         return false;
                     }
@@ -208,11 +237,11 @@ namespace WAload.Services
 
                     progress?.Invoke(0.8); // 80% - FFmpeg completed
                     
-                        // Log success output
-                        var standardOutput = await blurProcess.StandardOutput.ReadToEndAsync();
-                        if (!string.IsNullOrEmpty(standardOutput))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg standard output: {standardOutput}");
+                    // Log success output
+                    var standardOutput = await stdOutTask;
+                    if (!string.IsNullOrEmpty(standardOutput))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg standard output: {standardOutput}");
                     }
 
                     progress?.Invoke(0.9); // 90% - Validating file
@@ -335,18 +364,36 @@ namespace WAload.Services
 
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Waiting for image conversion process to exit...");
                 
-                while (!imageProcess.HasExited && !cancellationToken.IsCancellationRequested)
+                // Start progress monitoring task for images
+                var progressTask = Task.Run(async () =>
                 {
-                    await Task.Delay(200, cancellationToken);
-                }
-
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image processing was cancelled");
-                    return false;
-                }
+                    var lastProgress = 0.2; // Start at 20%
+                    while (!imageProcess.HasExited && !cancellationToken.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            // Simulate progress based on time elapsed (images are usually faster than videos)
+                            var elapsed = DateTime.Now - imageProcess.StartTime;
+                            var estimatedDuration = TimeSpan.FromSeconds(30); // Estimate 30 seconds for image conversion
+                            var currentProgress = Math.Min(0.2 + (elapsed.TotalMilliseconds / estimatedDuration.TotalMilliseconds) * 0.6, 0.8);
+                            
+                            if (currentProgress > lastProgress + 0.1) // Update every 10%
+                            {
+                                lastProgress = currentProgress;
+                                progress?.Invoke(currentProgress);
+                            }
+                            
+                            await Task.Delay(500, cancellationToken); // Check every half second
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+                });
 
                 await imageProcess.WaitForExitAsync(cancellationToken);
+                await progressTask; // Wait for progress monitoring to complete
                 
                 if (cancellationToken.IsCancellationRequested) return false;
 

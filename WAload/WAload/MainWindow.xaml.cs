@@ -25,99 +25,13 @@ using System.Threading;
 
 namespace WAload
 {
-    public class InvertedBooleanToVisibilityConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return boolValue ? Visibility.Collapsed : Visibility.Visible;
-            }
-            return Visibility.Visible;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class NotNullToVisibilityConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            return value != null ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class NullToVisibilityConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            return value == null ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class ProgressToWidthConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            if (value is double progress)
-            {
-                // Convert progress (0.0 to 1.0) to percentage width
-                return Math.Max(0, Math.Min(100, progress * 100));
-            }
-            return 0.0;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class ToUpperConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            return value?.ToString()?.ToUpper() ?? string.Empty;
-        }
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            return value?.ToString() ?? string.Empty;
-        }
-    }
-
-    public class ThumbnailWidthConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            // value is the ListView's ActualWidth, but we want the column width
-            // fallback to 100 if not available
-            if (parameter is GridViewColumn column && column.Width > 0)
-                return column.Width;
-            return 100.0;
-        }
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly IWhatsAppService _whatsAppService;
         private readonly VideoProcessingService _videoProcessingService;
+        private readonly XTweetScreenshotService _xTweetScreenshotService;
+        private readonly SettingsService _settingsService;
+        private AppSettings _appSettings;
         private readonly ObservableCollection<MediaItem> _mediaItems;
         private readonly ObservableCollection<WhatsGroup> _groups;
         private string _downloadFolder = string.Empty;
@@ -161,6 +75,16 @@ namespace WAload
                         StatusMessage = $"Download folder changed to: {Path.GetFileName(value)}";
                         System.Diagnostics.Debug.WriteLine($"Download folder changed from {oldFolder} to {value}");
                     }
+                    
+                    // Save to settings
+                    if (_appSettings != null)
+                    {
+                        _appSettings.DownloadFolder = value;
+                        _settingsService?.SaveSettings(_appSettings);
+                    }
+                    
+                    // Update X tweet service download folder
+                    _xTweetScreenshotService?.SetDownloadFolder(value);
                     
                     LoadExistingMedia();
                     SetupFileWatcher();
@@ -247,6 +171,13 @@ namespace WAload
                 {
                     _isMediaProcessingEnabled = value;
                     OnPropertyChanged(nameof(IsMediaProcessingEnabled));
+                    
+                    // Save to settings
+                    if (_appSettings != null)
+                    {
+                        _appSettings.IsMediaProcessingEnabled = value;
+                        _settingsService?.SaveSettings(_appSettings);
+                    }
                 }
             }
         }
@@ -335,6 +266,10 @@ namespace WAload
             
             _whatsAppService = new WhatsAppService();
             _videoProcessingService = new VideoProcessingService();
+            _xTweetScreenshotService = new XTweetScreenshotService();
+            _settingsService = new SettingsService();
+            _appSettings = _settingsService.LoadSettings();
+            
             _mediaItems = new ObservableCollection<MediaItem>();
             _groups = new ObservableCollection<WhatsGroup>();
 
@@ -353,14 +288,26 @@ namespace WAload
                 StatusMessage = "Warning: FFmpeg not found - video thumbnails disabled";
             }
             
-            // Set default download folder
-            DownloadFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "WAload Downloads");
-            
-            // Ensure download folder exists
-            if (!Directory.Exists(DownloadFolder))
+            // Set download folder from settings or default
+            if (!string.IsNullOrEmpty(_appSettings.DownloadFolder) && Directory.Exists(_appSettings.DownloadFolder))
             {
-                Directory.CreateDirectory(DownloadFolder);
+                DownloadFolder = _appSettings.DownloadFolder;
             }
+            else
+            {
+                DownloadFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "WAload Downloads");
+                if (!Directory.Exists(DownloadFolder))
+                {
+                    Directory.CreateDirectory(DownloadFolder);
+                }
+                _appSettings.DownloadFolder = DownloadFolder;
+            }
+
+            // Set media processing from settings
+            IsMediaProcessingEnabled = _appSettings.IsMediaProcessingEnabled;
+            
+            // Set download folder in X tweet service
+            _xTweetScreenshotService.SetDownloadFolder(DownloadFolder);
 
             SetupEventHandlers();
             LoadExistingMedia();
@@ -422,6 +369,7 @@ namespace WAload
             _whatsAppService.UserNameReceived += OnUserNameReceived;
             _whatsAppService.GroupsUpdated += OnGroupsUpdated;
             _whatsAppService.MediaMessageReceived += OnMediaMessageReceived;
+            _whatsAppService.TextMessageReceived += OnTextMessageReceived;
             _whatsAppService.MonitoringStatusChanged += OnMonitoringStatusChanged;
         }
 
@@ -775,6 +723,30 @@ namespace WAload
             sb.Stop(QrAnimatedBorder);
         }
 
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsModal = new SettingsModal(_appSettings);
+            settingsModal.Owner = this;
+            
+            if (settingsModal.ShowDialog() == true)
+            {
+                // Update settings
+                _appSettings = settingsModal.Settings;
+                _settingsService.SaveSettings(_appSettings);
+                
+                // Update UI based on new settings
+                IsMediaProcessingEnabled = _appSettings.IsMediaProcessingEnabled;
+                
+                // Update download folder if changed
+                if (!string.IsNullOrEmpty(_appSettings.DownloadFolder) && Directory.Exists(_appSettings.DownloadFolder))
+                {
+                    DownloadFolder = _appSettings.DownloadFolder;
+                }
+                
+                StatusMessage = "Settings saved successfully";
+            }
+        }
+
         private void OnQrCodeReceived(object? sender, string qrCode)
         {
             System.Diagnostics.Debug.WriteLine($"QR code event received in MainWindow: {qrCode.Substring(0, Math.Min(50, qrCode.Length))}...");
@@ -954,6 +926,113 @@ namespace WAload
             });
         }
 
+        private async void OnTextMessageReceived(object? sender, TextMessage textMessage)
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Text message received: {textMessage.Text?.Substring(0, Math.Min(100, textMessage.Text?.Length ?? 0))}...");
+                    
+                    // Check if the text contains any URLs
+                    if (!string.IsNullOrEmpty(textMessage.Text))
+                    {
+                        var urls = ExtractUrls(textMessage.Text);
+                        
+                        foreach (var url in urls)
+                        {
+                            // Check if it's an X tweet URL
+                            if (_xTweetScreenshotService.IsTweetUrl(url))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"X tweet URL detected: {url}");
+                                
+                                // Check if X tweet downloads are enabled
+                                if (_appSettings.DownloadXTweets)
+                                {
+                                    StatusMessage = "Processing X tweet...";
+                                    
+                                    // Take screenshot of the tweet
+                                    var screenshotPath = await _xTweetScreenshotService.TakeTweetScreenshotAsync(
+                                        url, 
+                                        textMessage.SenderName ?? "Unknown", 
+                                        DateTimeOffset.FromUnixTimeSeconds(textMessage.Timestamp ?? 0).DateTime
+                                    );
+                                    
+                                    if (!string.IsNullOrEmpty(screenshotPath))
+                                    {
+                                        StatusMessage = $"X tweet screenshot saved: {Path.GetFileName(screenshotPath)}";
+                                        
+                                        // Add to media items list as a special type
+                                        var mediaItem = new MediaItem
+                                        {
+                                            FileName = Path.GetFileName(screenshotPath),
+                                            FilePath = screenshotPath,
+                                            MediaType = "X Tweet Screenshot",
+                                            FileSize = new FileInfo(screenshotPath).Length,
+                                            Timestamp = DateTimeOffset.FromUnixTimeSeconds(textMessage.Timestamp ?? 0).DateTime,
+                                            SenderName = textMessage.SenderName ?? "Unknown",
+                                            GroupId = textMessage.From ?? string.Empty,
+                                            Thumbnail = CreateBitmapImageFromFile(screenshotPath) // Use the screenshot as its own thumbnail
+                                        };
+                                        
+                                        _mediaItems.Add(mediaItem);
+                                        OnPropertyChanged(nameof(MediaItems));
+                                    }
+                                    else
+                                    {
+                                        StatusMessage = "Failed to take X tweet screenshot";
+                                    }
+                                }
+                                else
+                                {
+                                    System.Diagnostics.Debug.WriteLine("X tweet downloads are disabled in settings");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error processing text message: {ex.Message}");
+                }
+            });
+        }
+
+        private List<string> ExtractUrls(string text)
+        {
+            var urls = new List<string>();
+            var urlPattern = @"https?://[^\s]+";
+            var matches = System.Text.RegularExpressions.Regex.Matches(text, urlPattern);
+            
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                urls.Add(match.Value);
+            }
+            
+            return urls;
+        }
+
+        private BitmapImage? CreateBitmapImageFromFile(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    var bitmapImage = new BitmapImage();
+                    bitmapImage.BeginInit();
+                    bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmapImage.UriSource = new Uri(filePath);
+                    bitmapImage.EndInit();
+                    return bitmapImage;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating BitmapImage from file {filePath}: {ex.Message}");
+            }
+            return null;
+        }
+
         private async Task<MediaItem?> DownloadMediaAsync(MediaMessage mediaMessage)
         {
             try
@@ -1014,10 +1093,9 @@ namespace WAload
 
         private async Task ProcessMediaFileAsync(string originalFilePath, string mediaType)
         {
-            // Create cancellation token source for this processing operation
-            _processingCancellationTokenSource?.Dispose();
-            _processingCancellationTokenSource = new CancellationTokenSource();
-            var cancellationToken = _processingCancellationTokenSource.Token;
+            // Create cancellation token source for this specific processing operation
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
 
             // Add debug logging to track cancellation
             var cancellationRegistration = cancellationToken.Register(() =>
@@ -1049,20 +1127,25 @@ namespace WAload
 
                 System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Starting processing for: {Path.GetFileName(originalFilePath)}");
 
-                // Show progress overlay
+                // Show progress overlay only if no other file is being processed
                 Dispatcher.Invoke(() =>
                 {
-                    IsProcessingMedia = true;
-                    ProcessingFileName = Path.GetFileName(originalFilePath);
-                    ProcessingProgress = 0.0;
-                    ProcessingProgressText = "Initializing...";
-                    
-                    // Update window title to indicate processing
-                    Title = $"WhatUPload - Processing {Path.GetFileName(originalFilePath)}...";
-                    
-                    // Start the rotation animation
-                    var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
-                    storyboard?.Begin();
+                    if (!IsProcessingMedia)
+                    {
+                        IsProcessingMedia = true;
+                        ProcessingFileName = Path.GetFileName(originalFilePath);
+                        ProcessingProgress = 0.0;
+                        ProcessingProgressText = "Initializing...";
+                        
+                        // Update window title to indicate processing
+                        Title = $"WhatUPload - Processing {Path.GetFileName(originalFilePath)}...";
+                        
+                        // Start the rotation and pulse animations
+                        var rotationStoryboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+                        var pulseStoryboard = FindResource("ProcessingIconPulseAnimation") as Storyboard;
+                        rotationStoryboard?.Begin();
+                        pulseStoryboard?.Begin();
+                    }
                 });
 
                 // Create processed filename
@@ -1134,33 +1217,34 @@ namespace WAload
             }
             finally
             {
-                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Entering finally block - hiding modal");
-                
-                // Dispose of the timeout timer
-                _processingTimeoutTimer?.Dispose();
-                _processingTimeoutTimer = null;
+                System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Entering finally block for {Path.GetFileName(originalFilePath)}");
                 
                 // Dispose of the cancellation token source
-                _processingCancellationTokenSource?.Dispose();
-                _processingCancellationTokenSource = null;
+                cancellationTokenSource?.Dispose();
                 
                 // Dispose of the cancellation registration
                 cancellationRegistration.Dispose();
                 
-                // Hide the progress overlay
+                // Hide the progress overlay only if this was the last processing operation
                 Dispatcher.Invoke(() =>
                 {
-                    IsProcessingMedia = false;
-                    ProcessingFileName = string.Empty;
-                    ProcessingProgress = 0.0;
-                    ProcessingProgressText = string.Empty;
-                    
-                    // Restore window title
-                    Title = "WhatUPload";
-                    
-                    // Stop the rotation animation
-                    var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
-                    storyboard?.Stop();
+                    // Check if this was the file being shown in the progress overlay
+                    if (ProcessingFileName == Path.GetFileName(originalFilePath))
+                    {
+                        IsProcessingMedia = false;
+                        ProcessingFileName = string.Empty;
+                        ProcessingProgress = 0.0;
+                        ProcessingProgressText = string.Empty;
+                        
+                        // Restore window title
+                        Title = "WhatUPload";
+                        
+                        // Stop the rotation and pulse animations
+                        var rotationStoryboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+                        var pulseStoryboard = FindResource("ProcessingIconPulseAnimation") as Storyboard;
+                        rotationStoryboard?.Stop();
+                        pulseStoryboard?.Stop();
+                    }
                 });
             }
         }
@@ -1478,14 +1562,7 @@ namespace WAload
                     return;
                 }
 
-                // Check if we're already processing media
-                if (IsProcessingMedia)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Already processing media, skipping: {e.Name}");
-                    return;
-                }
-
-                // Check if this file is currently being processed
+                // Check if this specific file is currently being processed
                 if (ProcessingFileName == e.Name)
                 {
                     System.Diagnostics.Debug.WriteLine($"[MediaProcessing] File {e.Name} is currently being processed, skipping");
@@ -1493,7 +1570,7 @@ namespace WAload
                 }
 
                 // Check if this is a media file we can process
-                var extension = Path.GetExtension(e.Name).ToLower();
+                var extension = Path.GetExtension(e.Name ?? "").ToLower();
                 if (!IsMediaFile(extension))
                 {
                     System.Diagnostics.Debug.WriteLine($"Skipping non-media file: {e.Name} (extension: {extension})");
@@ -1501,7 +1578,7 @@ namespace WAload
                 }
 
                 // Skip processed files
-                if (e.Name.Contains("_processed"))
+                if ((e.Name ?? "").Contains("_processed"))
                 {
                     System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileCreated for processed file: {e.Name}");
                     return;
@@ -1545,7 +1622,7 @@ namespace WAload
                     // After processing, move processed file back to original folder
                     var processedFileName = Path.GetFileNameWithoutExtension(tempFileName) + "_processed" + extension;
                     var processedFilePath = Path.Combine(_tempProcessingDir, processedFileName);
-                    var destProcessedFilePath = Path.Combine(Path.GetDirectoryName(e.FullPath)!, processedFileName);
+                    var destProcessedFilePath = Path.Combine(Path.GetDirectoryName(e.FullPath) ?? "", processedFileName);
                     if (File.Exists(processedFilePath))
                     {
                         try
@@ -1569,7 +1646,7 @@ namespace WAload
         private void OnFileDeleted(object sender, FileSystemEventArgs e)
         {
             // Skip processed files
-            if (e.Name.Contains("_processed"))
+            if ((e.Name ?? "").Contains("_processed"))
             {
                 System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileDeleted for processed file: {e.Name}");
                 return;
@@ -1579,7 +1656,7 @@ namespace WAload
             // Delete corresponding thumbnail if it exists
             try
             {
-                var thumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(e.Name)}.jpg");
+                var thumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(e.Name ?? "")}.jpg");
                 if (File.Exists(thumbnailPath))
                 {
                     File.Delete(thumbnailPath);
@@ -1597,7 +1674,7 @@ namespace WAload
         private void OnFileRenamed(object sender, RenamedEventArgs e)
         {
             // Skip processed files
-            if (e.Name.Contains("_processed") || e.OldName.Contains("_processed"))
+            if ((e.Name ?? "").Contains("_processed") || (e.OldName ?? "").Contains("_processed"))
             {
                 System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileRenamed for processed file: {e.OldName} -> {e.Name}");
                 return;
@@ -1609,7 +1686,7 @@ namespace WAload
         private void OnFileChanged(object sender, FileSystemEventArgs e)
         {
             // Skip processed files
-            if (e.Name.Contains("_processed"))
+            if ((e.Name ?? "").Contains("_processed"))
             {
                 System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileChanged for processed file: {e.Name}");
                 return;
@@ -2175,9 +2252,11 @@ namespace WAload
             // Restore window title
             Title = "WhatUPload";
             
-            // Stop the rotation animation
-            var storyboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
-            storyboard?.Stop();
+            // Stop the rotation and pulse animations
+            var rotationStoryboard = FindResource("ProcessingIconRotationAnimation") as Storyboard;
+            var pulseStoryboard = FindResource("ProcessingIconPulseAnimation") as Storyboard;
+            rotationStoryboard?.Stop();
+            pulseStoryboard?.Stop();
             
             StatusMessage = "Processing cancelled by user";
         }
