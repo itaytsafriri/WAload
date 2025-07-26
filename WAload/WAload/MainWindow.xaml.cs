@@ -1785,7 +1785,13 @@ namespace WAload
                 var jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(mediaInfo, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(jsonFilePath, jsonContent);
                 
-                System.Diagnostics.Debug.WriteLine($"Created JSON file: {jsonFilePath}");
+                // Set the JSON file as hidden
+                if (File.Exists(jsonFilePath))
+                {
+                    File.SetAttributes(jsonFilePath, File.GetAttributes(jsonFilePath) | FileAttributes.Hidden);
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"Created hidden JSON file: {jsonFilePath}");
             }
             catch (Exception ex)
             {
