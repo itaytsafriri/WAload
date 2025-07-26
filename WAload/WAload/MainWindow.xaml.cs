@@ -196,6 +196,7 @@ namespace WAload
                     OnPropertyChanged(nameof(ConnectButtonStyle));
                     OnPropertyChanged(nameof(IsMonitorButtonEnabled));
                     OnPropertyChanged(nameof(IsGroupSelectionEnabled));
+                    OnPropertyChanged(nameof(IsConnectButtonEnabled));
                 }
             }
         }
@@ -213,6 +214,7 @@ namespace WAload
                     OnPropertyChanged(nameof(MonitorButtonText));
                     OnPropertyChanged(nameof(MonitorButtonStyle));
                     OnPropertyChanged(nameof(IsGroupSelectionEnabled));
+                    OnPropertyChanged(nameof(IsConnectButtonEnabled));
                 }
             }
         }
@@ -304,7 +306,7 @@ namespace WAload
         // Dual-purpose button properties
         public string ConnectButtonText => IsConnected ? "Logout" : "Connect";
         public Style ConnectButtonStyle => IsConnected ? (FindResource("RedButton") as Style)! : (FindResource("SuccessButton") as Style)!;
-        public bool IsConnectButtonEnabled => true; // Always enabled, but behavior changes
+        public bool IsConnectButtonEnabled => !IsConnected || !IsMonitoring; // Enabled when disconnected or when connected but not monitoring
 
         public string MonitorButtonText => IsMonitoring ? "Stop Monitoring" : "Start Monitoring";
         public Style MonitorButtonStyle => IsMonitoring ? (FindResource("RedButton") as Style)! : (FindResource("SuccessButton") as Style)!;
@@ -818,7 +820,8 @@ namespace WAload
             await Dispatcher.InvokeAsync(async () =>
             {
                 IsConnected = connected;
-                ConnectButton.IsEnabled = !connected;
+                // Allow logout when connected and not monitoring
+                ConnectButton.IsEnabled = !connected || !IsMonitoring;
                 
                 if (connected)
                 {
@@ -942,6 +945,12 @@ namespace WAload
             {
                 IsMonitoring = monitoring;
                 StatusMessage = monitoring ? "Monitoring active" : "Monitoring stopped";
+                
+                // Update ConnectButton enabled state based on monitoring status
+                if (IsConnected)
+                {
+                    ConnectButton.IsEnabled = !monitoring;
+                }
             });
         }
 
