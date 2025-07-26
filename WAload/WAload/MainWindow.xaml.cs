@@ -121,8 +121,17 @@ namespace WAload
             {
                 if (_downloadFolder != value)
                 {
+                    var oldFolder = _downloadFolder;
                     _downloadFolder = value;
                     OnPropertyChanged(nameof(DownloadFolder));
+                    
+                    // Update status message to inform user of folder change
+                    if (!string.IsNullOrEmpty(oldFolder) && !string.IsNullOrEmpty(value))
+                    {
+                        StatusMessage = $"Download folder changed to: {Path.GetFileName(value)}";
+                        System.Diagnostics.Debug.WriteLine($"Download folder changed from {oldFolder} to {value}");
+                    }
+                    
                     LoadExistingMedia();
                     SetupFileWatcher();
                 }
@@ -684,35 +693,35 @@ namespace WAload
             {
                 System.Diagnostics.Debug.WriteLine($"Starting download for: {mediaMessage.Filename} ({mediaMessage.Type})");
                 
+                // Check if media data is empty
+                if (string.IsNullOrEmpty(mediaMessage.Data))
+                {
+                    System.Diagnostics.Debug.WriteLine("ERROR: Media data is empty or null - cannot download");
+                    StatusMessage = "Download failed: No media data received";
+                    return null;
+                }
+                
                 // Decode base64 data
                 var mediaData = Convert.FromBase64String(mediaMessage.Data);
                 System.Diagnostics.Debug.WriteLine($"Decoded data length: {mediaData.Length} bytes");
                 
-                // Determine file extension
-                var extension = GetFileExtension(mediaMessage.Type);
-                var fileName = GetSafeFileName(mediaMessage.Filename, extension);
-                var filePath = Path.Combine(DownloadFolder, fileName);
+                // Use filename directly from WhatsApp.js (already in correct format)
+                var filePath = Path.Combine(DownloadFolder, mediaMessage.Filename);
                 
-                // Ensure unique filename
+                // Ensure unique filename to avoid conflicts
                 var counter = 1;
                 while (File.Exists(filePath))
                 {
-                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                    var newFileName = $"{nameWithoutExt}_{counter}{extension}";
-                    filePath = Path.Combine(DownloadFolder, newFileName);
+                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(mediaMessage.Filename);
+                    var extension = Path.GetExtension(mediaMessage.Filename);
+                    filePath = Path.Combine(DownloadFolder, $"{fileNameWithoutExt}_{counter}{extension}");
                     counter++;
                 }
                 
                 // Write file
                 await File.WriteAllBytesAsync(filePath, mediaData);
                 
-                // Process media if enabled
-                if (IsMediaProcessingEnabled)
-                {
-                    await ProcessMediaFileAsync(filePath, mediaMessage.Type);
-                }
-                
-                // Create media item
+                // Create media item (let the app handle JSON/thumbnails)
                 var mediaItem = new MediaItem
                 {
                     FileName = Path.GetFileName(filePath),
@@ -721,11 +730,8 @@ namespace WAload
                     FileSize = mediaMessage.Size,
                     Timestamp = mediaMessage.DateTime,
                     SenderName = mediaMessage.SenderName,
-                    Extension = extension
+                    Extension = Path.GetExtension(filePath)
                 };
-                
-                // Generate thumbnail
-                await GenerateThumbnailAsync(mediaItem);
                 
                 System.Diagnostics.Debug.WriteLine($"Successfully created media item: {mediaItem.FileName} at {mediaItem.FilePath}");
                 return mediaItem;
@@ -733,9 +739,11 @@ namespace WAload
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error downloading media: {ex.Message}");
+                StatusMessage = $"Download failed: {ex.Message}";
                 return null;
             }
         }
+
 
         private async Task ProcessMediaFileAsync(string originalFilePath, string mediaType)
         {
@@ -1196,6 +1204,13 @@ namespace WAload
         {
             try
             {
+                // CRITICAL FIX: Check if media processing is enabled before proceeding
+                if (!IsMediaProcessingEnabled)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Media processing is disabled, skipping: {e.Name}");
+                    return;
+                }
+
                 // Check if we're already processing media
                 if (IsProcessingMedia)
                 {
@@ -1905,5 +1920,7 @@ namespace WAload
             else
                 return "unknown";
         }
+
+
     }
 }

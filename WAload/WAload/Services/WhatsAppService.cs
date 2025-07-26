@@ -141,7 +141,20 @@ namespace WAload.Services
             try
             {
                 System.Diagnostics.Debug.WriteLine($"Attempting to parse JSON: {e.Data}");
-                var message = JsonSerializer.Deserialize<NodeMessage>(e.Data);
+                
+                // Add more detailed JSON debugging for media messages
+                if (e.Data.Contains("\"type\":\"media\""))
+                {
+                    System.Diagnostics.Debug.WriteLine($"MEDIA MESSAGE DETECTED - Raw JSON: {e.Data}");
+                }
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                };
+                var message = JsonSerializer.Deserialize<NodeMessage>(e.Data, options);
                 if (message == null) 
                 {
                     System.Diagnostics.Debug.WriteLine("Deserialized message is null");
@@ -181,19 +194,30 @@ namespace WAload.Services
                         System.Diagnostics.Debug.WriteLine($"Media case triggered - Media object is {(message.Media != null ? "not null" : "null")}");
                         if (message.Media != null)
                         {
+                            System.Diagnostics.Debug.WriteLine($"Raw Media object - Id: '{message.Media.Id}', From: '{message.Media.From}', Author: '{message.Media.Author}', Type: '{message.Media.Type}', Data length: {message.Media.Data?.Length ?? 0}");
+                            
                             var mediaMessage = new MediaMessage
                             {
                                 Id = message.Media.Id ?? string.Empty,
                                 From = message.Media.From ?? string.Empty,
                                 Author = message.Media.Author ?? string.Empty,
                                 Type = message.Media.Type ?? string.Empty,
-                                Timestamp = message.Media.Timestamp != null ? new DateTimeOffset(message.Media.Timestamp.Value).ToUnixTimeSeconds() : 0,
+                                Timestamp = message.Media.Timestamp ?? 0,
                                 Filename = message.Media.Filename ?? string.Empty,
                                 Data = message.Media.Data ?? string.Empty,
                                 Size = message.Media.Size ?? 0,
                                 SenderName = message.Media.SenderName ?? string.Empty
                             };
                             System.Diagnostics.Debug.WriteLine($"Media received: {mediaMessage.Filename} (Type: {mediaMessage.Type}, Size: {mediaMessage.Size}, Data length: {mediaMessage.Data?.Length ?? 0})");
+                            System.Diagnostics.Debug.WriteLine($"Media details - ID: {mediaMessage.Id}, From: {mediaMessage.From}, Author: {mediaMessage.Author}");
+                            if (string.IsNullOrEmpty(mediaMessage.Data))
+                            {
+                                System.Diagnostics.Debug.WriteLine("WARNING: Media data is empty - this might indicate a download issue");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"SUCCESS: Media data received with length {mediaMessage.Data.Length}");
+                            }
                             MediaMessageReceived?.Invoke(this, mediaMessage);
                         }
                         else
@@ -279,11 +303,46 @@ namespace WAload.Services
 
         public async Task LogoutAsync()
         {
-            if (_nodeProcess?.HasExited == false)
+            try
             {
-                var command = new { type = "logout" };
-                var json = JsonSerializer.Serialize(command);
-                await _nodeProcess.StandardInput.WriteLineAsync(json);
+                System.Diagnostics.Debug.WriteLine("Starting WhatsApp logout...");
+                
+                // Stop monitoring if active
+                if (_isMonitoring)
+                {
+                    await StopMonitoringAsync();
+                }
+
+                // Send logout command to Node process
+                await SendCommandAsync("logout");
+                
+                // Wait a bit for the command to be processed
+                await Task.Delay(1000);
+                
+                // Kill the Node process
+                if (_nodeProcess != null)
+                {
+                    if (!_nodeProcess.HasExited)
+                    {
+                        _nodeProcess.Kill(true);
+                        System.Diagnostics.Debug.WriteLine("Node process killed");
+                    }
+                    _nodeProcess.Dispose();
+                    _nodeProcess = null;
+                }
+                
+                // Clean up session data
+                CleanupSessionData();
+                
+                _isConnected = false;
+                ConnectionStatusChanged?.Invoke(this, false);
+                
+                System.Diagnostics.Debug.WriteLine("WhatsApp logout completed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error during logout: {ex.Message}");
+                throw;
             }
         }
 
@@ -306,6 +365,16 @@ namespace WAload.Services
                     _nodeProcess.Dispose();
                     _nodeProcess = null;
                 }
+            }
+        }
+
+        private async Task SendCommandAsync(string commandType, object? data = null)
+        {
+            if (_nodeProcess?.HasExited == false)
+            {
+                var command = new { type = commandType, data };
+                var json = JsonSerializer.Serialize(command);
+                await _nodeProcess.StandardInput.WriteLineAsync(json);
             }
         }
     }

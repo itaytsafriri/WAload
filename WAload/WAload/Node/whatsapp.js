@@ -456,22 +456,37 @@ function setupEventListeners() {
                 
                 const media = await msg.downloadMedia();
                 if (media) {
-                    const contact = await msg.getContact();
-                    
-                    sendToHost({
-                        type: 'media',
-                        Media: {
-                            Id: msg.id.id,
-                            From: msg.from,
-                            Author: msg.author,
-                            Type: media.mimetype,
-                            Timestamp: msg.timestamp,
-                            Filename: media.filename,
-                            Data: media.data,
-                            Size: media.size,
-                            SenderName: contact.pushname || contact.name || contact.number
-                        }
-                    });
+                    const mediaType = media.mimetype.split('/')[0];
+                    // Only process image, video, audio, and voice messages
+                    if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
+                        const contact = await msg.getContact();
+                        const timestamp = new Date(msg.timestamp * 1000).toISOString()
+                            .replace(/[-:]/g, '')
+                            .split('.')[0]
+                            .replace('T', '_');
+                        const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
+                            .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
+                            .replace(/\s+/g, '_') // Replace spaces with underscores
+                            .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
+                            .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+                        const extension = media.mimetype.split('/')[1];
+                        
+                        log(`Sending media to host - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
+                        sendToHost({
+                            type: 'media',
+                            Media: {
+                                Id: msg.id.id,
+                                From: msg.from,
+                                Author: msg.author,
+                                Type: media.mimetype,
+                                Timestamp: msg.timestamp,
+                                Filename: `${senderName}_${timestamp}.${extension}`,
+                                Data: media.data,
+                                Size: media.size,
+                                SenderName: contact.pushname || contact.name || contact.number
+                            }
+                        });
+                    }
                 }
             }
         } catch (e) {
@@ -479,6 +494,7 @@ function setupEventListeners() {
         }
     });
     
+    // Update message_create handler with the same logic
     client.on('message_create', async (msg) => {
         if (!isMonitoring || !selectedGroupId) return;
         
@@ -489,22 +505,37 @@ function setupEventListeners() {
                 
                 const media = await msg.downloadMedia();
                 if (media) {
-                    const contact = await msg.getContact();
-                    
-                    sendToHost({
-                        type: 'media',
-                        Media: {
-                            Id: msg.id.id,
-                            From: msg.from,
-                            Author: msg.author,
-                            Type: media.mimetype,
-                            Timestamp: msg.timestamp,
-                            Filename: media.filename,
-                            Data: media.data,
-                            Size: media.size,
-                            SenderName: contact.pushname || contact.name || contact.number
-                        }
-                    });
+                    const mediaType = media.mimetype.split('/')[0];
+                    // Only process image, video, audio, and voice messages
+                    if (['image', 'video', 'audio', 'voice'].includes(mediaType)) {
+                        const contact = await msg.getContact();
+                        const timestamp = new Date(msg.timestamp * 1000).toISOString()
+                            .replace(/[-:]/g, '')
+                            .split('.')[0]
+                            .replace('T', '_');
+                        const senderName = (contact.pushname || contact.name || contact.number || 'unknown')
+                            .replace(/[<>:"/\\|?*]/g, '_') // Only remove truly problematic file system characters
+                            .replace(/\s+/g, '_') // Replace spaces with underscores
+                            .replace(/_{2,}/g, '_') // Replace multiple consecutive underscores with single
+                            .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+                        const extension = media.mimetype.split('/')[1];
+                        
+                        log(`Sending media to host (message_create) - Data length: ${media.data ? media.data.length : 0}, Size: ${media.size}`);
+                        sendToHost({
+                            type: 'media',
+                            Media: {
+                                Id: msg.id.id,
+                                From: msg.from,
+                                Author: msg.author,
+                                Type: media.mimetype,
+                                Timestamp: msg.timestamp,
+                                Filename: `${senderName}_${timestamp}.${extension}`,
+                                Data: media.data,
+                                Size: media.size,
+                                SenderName: contact.pushname || contact.name || contact.number
+                            }
+                        });
+                    }
                 }
             }
         } catch (e) {

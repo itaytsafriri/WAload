@@ -37,31 +37,31 @@ namespace WAload.Models
 
     public class MediaInfo
     {
-        [JsonPropertyName("id")]
+        [JsonPropertyName("Id")]
         public string? Id { get; set; }
 
-        [JsonPropertyName("from")]
+        [JsonPropertyName("From")]
         public string? From { get; set; }
 
-        [JsonPropertyName("author")]
+        [JsonPropertyName("Author")]
         public string? Author { get; set; }
 
-        [JsonPropertyName("type")]
+        [JsonPropertyName("Type")]
         public string? Type { get; set; }
 
-        [JsonPropertyName("timestamp")]
-        public DateTime? Timestamp { get; set; }
+        [JsonPropertyName("Timestamp")]
+        public long? Timestamp { get; set; }
 
-        [JsonPropertyName("filename")]
+        [JsonPropertyName("Filename")]
         public string? Filename { get; set; }
 
-        [JsonPropertyName("data")]
+        [JsonPropertyName("Data")]
         public string? Data { get; set; }
 
-        [JsonPropertyName("size")]
+        [JsonPropertyName("Size")]
         public long? Size { get; set; }
 
-        [JsonPropertyName("senderName")]
+        [JsonPropertyName("SenderName")]
         public string? SenderName { get; set; }
     }
 } 

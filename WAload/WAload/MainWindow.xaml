@@ -336,11 +336,11 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid Width="100" Height="60">
-                                        <Image Source="{Binding Thumbnail}"
+                                        <Image Source="{Binding Thumbnail}" 
                                                Width="100" Height="60"
                                                Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
                                                Visibility="{Binding Thumbnail, Converter={StaticResource NotNullToVis}}"/>
-                                        <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1"
+                                        <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1" 
                                                 Width="100" Height="60"
                                                 Visibility="{Binding Thumbnail, Converter={StaticResource NullToVis}}">
                                             <TextBlock Text="{Binding Extension}" FontSize="12"

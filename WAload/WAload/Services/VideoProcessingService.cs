@@ -195,7 +195,7 @@ namespace WAload.Services
 
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg exited with code: {blurProcess.ExitCode}");
                     if (blurProcess.ExitCode != 0)
-                    {
+                        {
                         System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg error output: {stdErr}");
                         return false;
                     }
@@ -208,11 +208,11 @@ namespace WAload.Services
 
                     progress?.Invoke(0.8); // 80% - FFmpeg completed
                     
-                    // Log success output
-                    var standardOutput = await blurProcess.StandardOutput.ReadToEndAsync();
-                    if (!string.IsNullOrEmpty(standardOutput))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg standard output: {standardOutput}");
+                        // Log success output
+                        var standardOutput = await blurProcess.StandardOutput.ReadToEndAsync();
+                        if (!string.IsNullOrEmpty(standardOutput))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg standard output: {standardOutput}");
                     }
 
                     progress?.Invoke(0.9); // 90% - Validating file
