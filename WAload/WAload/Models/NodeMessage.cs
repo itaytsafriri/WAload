@@ -14,6 +14,7 @@ namespace WAload.Models
         public bool? Connected { get; set; }
 
         [JsonPropertyName("name")]
+        
         public string? Name { get; set; }
 
         [JsonPropertyName("groups")]

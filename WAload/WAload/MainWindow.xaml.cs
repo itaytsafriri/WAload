@@ -162,6 +162,10 @@ namespace WAload
                     OnPropertyChanged(nameof(IsConnected));
                     OnPropertyChanged(nameof(ConnectionStatus));
                     OnPropertyChanged(nameof(IsGroupsLoadedAndNotMonitoring));
+                    OnPropertyChanged(nameof(ConnectButtonText));
+                    OnPropertyChanged(nameof(ConnectButtonStyle));
+                    OnPropertyChanged(nameof(IsMonitorButtonEnabled));
+                    OnPropertyChanged(nameof(IsGroupSelectionEnabled));
                 }
             }
         }
@@ -176,6 +180,9 @@ namespace WAload
                     _isMonitoring = value;
                     OnPropertyChanged(nameof(IsMonitoring));
                     OnPropertyChanged(nameof(IsGroupsLoadedAndNotMonitoring));
+                    OnPropertyChanged(nameof(MonitorButtonText));
+                    OnPropertyChanged(nameof(MonitorButtonStyle));
+                    OnPropertyChanged(nameof(IsGroupSelectionEnabled));
                 }
             }
         }
@@ -190,6 +197,7 @@ namespace WAload
                     _isGroupsLoaded = value;
                     OnPropertyChanged(nameof(IsGroupsLoaded));
                     OnPropertyChanged(nameof(IsGroupsLoadedAndNotMonitoring));
+                    OnPropertyChanged(nameof(IsMonitorButtonEnabled));
                 }
             }
         }
@@ -262,6 +270,17 @@ namespace WAload
                 }
             }
         }
+
+        // Dual-purpose button properties
+        public string ConnectButtonText => IsConnected ? "Logout" : "Connect";
+        public Style ConnectButtonStyle => IsConnected ? (FindResource("RedButton") as Style)! : (FindResource("SuccessButton") as Style)!;
+        public bool IsConnectButtonEnabled => true; // Always enabled, but behavior changes
+
+        public string MonitorButtonText => IsMonitoring ? "Stop Monitoring" : "Start Monitoring";
+        public Style MonitorButtonStyle => IsMonitoring ? (FindResource("RedButton") as Style)! : (FindResource("SuccessButton") as Style)!;
+        public bool IsMonitorButtonEnabled => IsConnected && IsGroupsLoaded;
+
+        public bool IsGroupSelectionEnabled => IsConnected && !IsMonitoring;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -394,20 +413,33 @@ namespace WAload
         {
             try
             {
-                StatusMessage = "Connecting to WhatsApp...";
-                ConnectButton.IsEnabled = false;
-                StopConnectButtonFlash(); // Stop flashing when clicked
-                
-                await _whatsAppService.InitializeAsync();
-                
-                StatusMessage = "Waiting for QR code...";
+                if (IsConnected)
+                {
+                    // Logout functionality
+                    StatusMessage = "Logging out...";
+                    await _whatsAppService.LogoutAsync();
+                }
+                else
+                {
+                    // Connect functionality
+                    StatusMessage = "Connecting to WhatsApp...";
+                    ConnectButton.IsEnabled = false;
+                    StopConnectButtonFlash(); // Stop flashing when clicked
+                    
+                    await _whatsAppService.InitializeAsync();
+                    
+                    StatusMessage = "Waiting for QR code...";
+                }
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Connection failed: {ex.Message}";
+                StatusMessage = $"Operation failed: {ex.Message}";
                 ConnectButton.IsEnabled = true;
-                StartConnectButtonFlash(); // Resume flashing if connection fails
-                System.Windows.MessageBox.Show($"Failed to connect: {ex.Message}", "Connection Error", 
+                if (!IsConnected)
+                {
+                    StartConnectButtonFlash(); // Resume flashing if connection fails
+                }
+                System.Windows.MessageBox.Show($"Operation failed: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -429,56 +461,47 @@ namespace WAload
 
         private async void MonitorButton_Click(object sender, RoutedEventArgs e)
         {
-            if (GroupsComboBox.SelectedValue is string groupId)
+            if (IsMonitoring)
             {
+                // Stop monitoring functionality
                 try
                 {
-                    StatusMessage = "Starting monitoring...";
-                    await _whatsAppService.StartMonitoringAsync(groupId);
+                    StatusMessage = "Stopping monitoring...";
+                    await _whatsAppService.StopMonitoringAsync();
                 }
                 catch (Exception ex)
                 {
-                    StatusMessage = $"Failed to start monitoring: {ex.Message}";
-                    System.Windows.MessageBox.Show($"Failed to start monitoring: {ex.Message}", "Error", 
+                    StatusMessage = $"Failed to stop monitoring: {ex.Message}";
+                    System.Windows.MessageBox.Show($"Failed to stop monitoring: {ex.Message}", "Error", 
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             else
             {
-                System.Windows.MessageBox.Show("Please select a group to monitor.", "No Group Selected", 
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                // Start monitoring functionality
+                if (GroupsComboBox.SelectedValue is string groupId)
+                {
+                    try
+                    {
+                        StatusMessage = "Starting monitoring...";
+                        await _whatsAppService.StartMonitoringAsync(groupId);
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusMessage = $"Failed to start monitoring: {ex.Message}";
+                        System.Windows.MessageBox.Show($"Failed to start monitoring: {ex.Message}", "Error", 
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show("Please select a group to monitor.", "No Group Selected", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
         }
 
-        private async void StopMonitorButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                StatusMessage = "Stopping monitoring...";
-                await _whatsAppService.StopMonitoringAsync();
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Failed to stop monitoring: {ex.Message}";
-                System.Windows.MessageBox.Show($"Failed to stop monitoring: {ex.Message}", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
 
-        private async void LogoutButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                StatusMessage = "Logging out...";
-                await _whatsAppService.LogoutAsync();
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Logout failed: {ex.Message}";
-                System.Windows.MessageBox.Show($"Logout failed: {ex.Message}", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
         
         protected override void OnClosed(EventArgs e)
         {
@@ -1466,8 +1489,8 @@ namespace WAload
                         continue;
                     }
                     
-                    // Skip thumbnail files
-                    if (fileInfo.Name.StartsWith("thumb_") || fileInfo.Extension.ToLower() == ".jpg" || fileInfo.Extension.ToLower() == ".png")
+                    // Skip thumbnail files (only files that start with "thumb_")
+                    if (fileInfo.Name.StartsWith("thumb_"))
                     {
                         System.Diagnostics.Debug.WriteLine($"Skipping thumbnail file: {fileInfo.Name}");
                         continue;

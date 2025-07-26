@@ -310,177 +310,76 @@ namespace WAload.Services
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Using temp directory: {tempDir}");
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Temp output path: {tempOutputPath}");
 
-                try
+                // Convert image to 16:9 aspect ratio with blurred background effect
+                var filterComplex = "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=10[bg];[0:v]scale=-1:1080,setsar=1[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2";
+                var imageArgs = $"-i \"{inputPath}\" -filter_complex \"{filterComplex}\" -frames:v 1 -update 1 \"{outputPath}\"";
+                
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Running image conversion command: {imageArgs}");
+                
+                var imageProcess = new Process
                 {
-                    // Convert image to video with blur background
-                    var blurArgs = $"-loop 1 -i \"{inputPath}\" -vf \"boxblur=10:10,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2\" -c:v libx264 -preset medium -crf 23 -t 5 -movflags +faststart \"{tempOutputPath}\"";
-                    
-                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Running image blur command: {blurArgs}");
-                    
-                    var blurProcess = new Process
+                    StartInfo = new ProcessStartInfo
                     {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = _ffmpegPath,
-                            Arguments = blurArgs,
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            CreateNoWindow = true,
-                            WorkingDirectory = Path.GetDirectoryName(_ffmpegPath)
-                        }
-                    };
-
-                    _currentProcess = blurProcess;
-                    blurProcess.Start();
-
-                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Waiting for image blur process to exit...");
-                    
-                    while (!blurProcess.HasExited && !cancellationToken.IsCancellationRequested)
-                    {
-                        await Task.Delay(200, cancellationToken);
+                        FileName = _ffmpegPath,
+                        Arguments = imageArgs,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                        WorkingDirectory = Path.GetDirectoryName(_ffmpegPath)
                     }
+                };
 
-                    if (cancellationToken.IsCancellationRequested)
+                _currentProcess = imageProcess;
+                imageProcess.Start();
+
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Waiting for image conversion process to exit...");
+                
+                while (!imageProcess.HasExited && !cancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(200, cancellationToken);
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image processing was cancelled");
+                    return false;
+                }
+
+                await imageProcess.WaitForExitAsync(cancellationToken);
+                
+                if (cancellationToken.IsCancellationRequested) return false;
+
+                var exitCode = imageProcess.ExitCode;
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image conversion process exited with code: {exitCode}");
+
+                if (exitCode != 0)
+                {
+                    var errorOutput = await imageProcess.StandardError.ReadToEndAsync();
+                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image conversion failed: {errorOutput}");
+                    return false;
+                }
+
+                // Verify the output file is valid
+                if (File.Exists(outputPath))
+                {
+                    var fileInfo = new FileInfo(outputPath);
+                    if (fileInfo.Length > 1000) // Ensure file is not empty/corrupted
                     {
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image processing was cancelled");
-                        return false;
-                    }
-
-                    await blurProcess.WaitForExitAsync(cancellationToken);
-                    
-                    if (cancellationToken.IsCancellationRequested) return false;
-
-                    var exitCode = blurProcess.ExitCode;
-                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image blur process exited with code: {exitCode}");
-
-                    if (exitCode != 0)
-                    {
-                        var errorOutput = await blurProcess.StandardError.ReadToEndAsync();
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image blur conversion failed: {errorOutput}");
-                        
-                        // Try alternative approach with simpler blur
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Trying alternative image blur command: {Path.GetFileName(inputPath)}");
-                        
-                        var alternativeArgs = $"-loop 1 -i \"{inputPath}\" -vf \"gblur=sigma=10,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2\" -c:v libx264 -preset medium -crf 23 -t 5 -movflags +faststart \"{tempOutputPath}\"";
-                        
-                        var altProcess = new Process
-                        {
-                            StartInfo = new ProcessStartInfo
-                            {
-                                FileName = _ffmpegPath,
-                                Arguments = alternativeArgs,
-                                UseShellExecute = false,
-                                RedirectStandardOutput = true,
-                                RedirectStandardError = true,
-                                CreateNoWindow = true,
-                                WorkingDirectory = Path.GetDirectoryName(_ffmpegPath)
-                            }
-                        };
-
-                        _currentProcess = altProcess;
-                        altProcess.Start();
-                        
-                        while (!altProcess.HasExited && !cancellationToken.IsCancellationRequested)
-                        {
-                            await Task.Delay(200, cancellationToken);
-                        }
-
-                        if (cancellationToken.IsCancellationRequested) return false;
-
-                        await altProcess.WaitForExitAsync(cancellationToken);
-                        
-                        if (cancellationToken.IsCancellationRequested) return false;
-
-                        exitCode = altProcess.ExitCode;
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Alternative image blur conversion failed: {await altProcess.StandardError.ReadToEndAsync()}");
-                        
-                        if (exitCode != 0)
-                        {
-                            // Final fallback: simple conversion with black padding
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Trying simple image conversion with black padding: {Path.GetFileName(inputPath)}");
-                            
-                            var simpleArgs = $"-loop 1 -i \"{inputPath}\" -vf \"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black\" -c:v libx264 -preset medium -crf 23 -t 5 -movflags +faststart \"{tempOutputPath}\"";
-                            
-                            var simpleProcess = new Process
-                            {
-                                StartInfo = new ProcessStartInfo
-                                {
-                                    FileName = _ffmpegPath,
-                                    Arguments = simpleArgs,
-                                    UseShellExecute = false,
-                                    RedirectStandardOutput = true,
-                                    RedirectStandardError = true,
-                                    CreateNoWindow = true,
-                                    WorkingDirectory = Path.GetDirectoryName(_ffmpegPath)
-                                }
-                            };
-
-                            _currentProcess = simpleProcess;
-                            simpleProcess.Start();
-                            
-                            while (!simpleProcess.HasExited && !cancellationToken.IsCancellationRequested)
-                            {
-                                await Task.Delay(200, cancellationToken);
-                            }
-
-                            if (cancellationToken.IsCancellationRequested) return false;
-
-                            await simpleProcess.WaitForExitAsync(cancellationToken);
-                            
-                            if (cancellationToken.IsCancellationRequested) return false;
-
-                            exitCode = simpleProcess.ExitCode;
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Simple image conversion failed: {await simpleProcess.StandardError.ReadToEndAsync()}");
-                            
-                            if (exitCode != 0)
-                            {
-                                return false;
-                            }
-                        }
-                    }
-
-                    // Verify the temporary file is valid
-                    if (File.Exists(tempOutputPath))
-                    {
-                        var fileInfo = new FileInfo(tempOutputPath);
-                        if (fileInfo.Length > 1000) // Ensure file is not empty/corrupted
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image temp file is valid ({fileInfo.Length} bytes), moving to final destination");
-                            
-                            // Move the completed file to the final destination
-                            File.Move(tempOutputPath, outputPath);
-                            
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Successfully moved image file to: {outputPath}");
-                            return true;
-                        }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image temp file is too small ({fileInfo.Length} bytes), conversion failed");
-                        }
+                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image conversion completed successfully: {Path.GetFileName(outputPath)} ({fileInfo.Length} bytes)");
+                        return true;
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image temp file does not exist: {tempOutputPath}");
+                        System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image output file is too small ({fileInfo.Length} bytes), conversion failed");
                     }
-
-                    return false;
                 }
-                finally
+                else
                 {
-                    // Clean up temporary file if it exists
-                    if (File.Exists(tempOutputPath))
-                    {
-                        try
-                        {
-                            File.Delete(tempOutputPath);
-                        }
-                        catch
-                        {
-                            // Ignore cleanup errors
-                        }
-                    }
+                    System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Image output file does not exist: {outputPath}");
                 }
+
+                return false;
             }
             catch (OperationCanceledException)
             {
