@@ -442,4 +442,94 @@ $RECYCLE.BIN/
 *.msp
 
 # Windows shortcuts
-*.lnk 
+*.lnk
+
+# ========================================
+# WAload Specific Exclusions
+# ========================================
+
+# Media files and downloads
+downloads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Downloaded media folders
+WAload Downloads/
+WAloadDownloads/
+Downloads/
+
+# Thumbnail cache
+thumbnails/
+Thumbnails/
+
+# JSON metadata files for media
+*.json
+!package.json
+!package-lock.json
+
+# Build outputs and publish folders
+publish*/
+publish-complete*/
+publish-*/
+bin/
+obj/
+
+# Node.js build artifacts
+Node/.wwebjs_auth/
+Node/log.txt
+Node/node_debug.log
+
+# Temporary processing files
+WAloadTemp/
+temp/
+tmp/
+
+# License and key files
+*.key
+*.lic
+license.txt
+license.json
+
+# User-specific settings
+appsettings.json
+appsettings.*.json
+!appsettings.example.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*_backup.* 

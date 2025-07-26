@@ -5,9 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WAload"
         mc:Ignorable="d"
-        Title="WhatUPload - WhatsApp Media Manager" Height="700" Width="1000"
+        Title="WhatUPload - WhatsApp Media Manager" 
+        Height="600" Width="900"
+        MinHeight="500" MinWidth="800"
         Background="#F8F9FA"
-        ResizeMode="CanMinimize"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/images/icon.ico"
         Closing="MainWindow_Closing"
@@ -193,7 +195,7 @@
 
         <!-- Progress to Width Converter -->
         <local:ProgressToWidthConverter x:Key="ProgressToWidthConverter"/>
-        <local:ThumbnailWidthConverter x:Key="ThumbnailWidthConverter" ThumbnailColumn="{Binding ElementName=ThumbnailColumn}"/>
+        <local:ThumbnailWidthConverter x:Key="ThumbnailWidthConverter"/>
         <!-- Replace Media Processing radio button with toggle switch -->
         <!-- Add ToggleSwitch style -->
         <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
@@ -328,14 +330,13 @@
                 <!-- Monitoring Controls -->
                 <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
                     <TextBlock Text="Select Group:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ComboBox x:Name="GroupsComboBox" Width="350"
+                    <ComboBox x:Name="GroupsComboBox" MinWidth="250" MaxWidth="400"
                               Style="{StaticResource ModernComboBox}"
-                              DisplayMemberPath="Name"
                               SelectedValuePath="Id"
                               ItemsSource="{Binding Groups}"
                               SelectionChanged="GroupsComboBox_SelectionChanged"
                               IsEnabled="{Binding IsGroupSelectionEnabled}"
-                              FontSize="20">
+                              FontSize="18">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}" FontSize="20"/>
@@ -368,7 +369,7 @@
                 <!-- Download Folder -->
                 <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,10,0,0">
                     <TextBlock Text="Download Folder:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBox x:Name="DownloadFolderTextBox" Width="250" 
+                    <TextBox x:Name="DownloadFolderTextBox" MinWidth="200" MaxWidth="350"
                              Style="{StaticResource ModernTextBox}"
                              Text="{Binding DownloadFolder, Converter={StaticResource ToUpperConverter}}"
                              IsReadOnly="True"/>
@@ -380,9 +381,9 @@
                 <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Top" Margin="0,9,0,0" Grid.RowSpan="3">
                     <!-- App Icon -->
                     <Image Source="pack://application:,,,/images/icon.ico" 
-                           Width="110" Height="104" 
+                           Width="80" Height="76" 
                            HorizontalAlignment="Center" 
-                           Margin="0,0,0,20"/>
+                           Margin="0,0,0,15"/>
 
                     <!-- Media Processing Toggle -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -428,8 +429,7 @@
                                 <DataTemplate>
                                     <Grid>
                                         <Image Source="{Binding Thumbnail}"
-                                               Width="{Binding RelativeSource={RelativeSource AncestorType=ListView}, Path=ActualWidth, Converter={StaticResource ThumbnailWidthConverter}}"
-                                               Height="60"
+                                               Width="100" Height="60"
                                                Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
                                                Visibility="{Binding Thumbnail, Converter={StaticResource NotNullToVis}}"/>
                                         <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1" 

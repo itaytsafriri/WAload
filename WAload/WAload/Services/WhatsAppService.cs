@@ -97,9 +97,23 @@ namespace WAload.Services
 
         private async Task StartNodeProcessAsync()
         {
+            // Try to find node.exe in the Node folder first, then fall back to system PATH
+            string nodeExePath = "node";
+            var localNodePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "node.exe");
+            
+            if (File.Exists(localNodePath))
+            {
+                nodeExePath = localNodePath;
+                System.Diagnostics.Debug.WriteLine($"Using local Node.js: {nodeExePath}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Local Node.js not found at {localNodePath}, using system PATH");
+            }
+
             var startInfo = new ProcessStartInfo
             {
-                FileName = "node",
+                FileName = nodeExePath,
                 Arguments = $"\"{_nodeScriptPath}\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
