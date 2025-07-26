@@ -305,6 +305,19 @@ namespace WAload
             // In MainWindow constructor or OnLoaded, hook up the toggle and animation
             Loaded += (s, e) =>
             {
+                // Start Connect button flash animation with delay to ensure everything is loaded
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        StartConnectButtonFlash();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to start connect button flash: {ex.Message}");
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                
                 var border = MediaProcLabelBorder;
                 var toggle = MediaProcessingToggle;
                 var flashAnim = new ColorAnimation
@@ -345,12 +358,45 @@ namespace WAload
             _whatsAppService.MonitoringStatusChanged += OnMonitoringStatusChanged;
         }
 
+        private void StartConnectButtonFlash()
+        {
+            try
+            {
+                var storyboard = FindResource("ConnectButtonFlashAnimation") as Storyboard;
+                if (storyboard != null && ConnectButton != null)
+                {
+                    storyboard.Begin(ConnectButton);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error starting connect button flash: {ex.Message}");
+            }
+        }
+
+        private void StopConnectButtonFlash()
+        {
+            try
+            {
+                var storyboard = FindResource("ConnectButtonFlashAnimation") as Storyboard;
+                if (storyboard != null && ConnectButton != null)
+                {
+                    storyboard.Stop(ConnectButton);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error stopping connect button flash: {ex.Message}");
+            }
+        }
+
         private async void ConnectButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 StatusMessage = "Connecting to WhatsApp...";
                 ConnectButton.IsEnabled = false;
+                StopConnectButtonFlash(); // Stop flashing when clicked
                 
                 await _whatsAppService.InitializeAsync();
                 
@@ -360,6 +406,7 @@ namespace WAload
             {
                 StatusMessage = $"Connection failed: {ex.Message}";
                 ConnectButton.IsEnabled = true;
+                StartConnectButtonFlash(); // Resume flashing if connection fails
                 System.Windows.MessageBox.Show($"Failed to connect: {ex.Message}", "Connection Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -477,6 +524,18 @@ namespace WAload
             }
         }
 
+        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            
+            // Handle Delete key for selected items
+            if (e.Key == System.Windows.Input.Key.Delete && MediaListView.SelectedItem is MediaItem item)
+            {
+                DeleteFile(item);
+                e.Handled = true;
+            }
+        }
+
         private void OpenFileMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (MediaListView.SelectedItem is MediaItem item)
@@ -514,6 +573,14 @@ namespace WAload
             if (MediaListView.SelectedItem is MediaItem item)
             {
                 DeleteFile(item);
+            }
+        }
+
+        private void MediaProcessingMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (MediaListView.SelectedItem is MediaItem item)
+            {
+                ProcessSelectedMediaFile(item);
             }
         }
 
@@ -1788,6 +1855,71 @@ namespace WAload
                     System.Windows.MessageBox.Show($"Failed to delete file: {ex.Message}", "Error", 
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private void ProcessSelectedMediaFile(MediaItem item)
+        {
+            try
+            {
+                if (!File.Exists(item.FilePath))
+                {
+                    System.Windows.MessageBox.Show("File not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var extension = Path.GetExtension(item.FilePath).ToLowerInvariant();
+                var isProcessable = extension == ".jpg" || extension == ".jpeg" || extension == ".png" || 
+                                   extension == ".bmp" || extension == ".gif" || extension == ".mp4" || 
+                                   extension == ".avi" || extension == ".mov" || extension == ".wmv";
+
+                if (!isProcessable)
+                {
+                    System.Windows.MessageBox.Show("This file type is not supported for processing.", "Unsupported Format", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Skip files that already have _processed in their name
+                if (Path.GetFileName(item.FilePath).Contains("_processed"))
+                {
+                    System.Windows.MessageBox.Show("This file has already been processed.", "Already Processed", 
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Start processing asynchronously without blocking the UI
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await ProcessMediaFileAsync(item.FilePath, item.MediaType);
+                        
+                        // Update status on UI thread after completion
+                        Dispatcher.Invoke(() =>
+                        {
+                            StatusMessage = $"Processed {item.FileName}";
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        // Handle errors on UI thread
+                        Dispatcher.Invoke(() =>
+                        {
+                            System.Windows.MessageBox.Show($"Failed to process file: {ex.Message}", "Processing Error", 
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                            StatusMessage = "Processing failed";
+                        });
+                    }
+                });
+
+                StatusMessage = $"Processing {item.FileName}...";
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to start processing: {ex.Message}", "Processing Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = "Processing failed";
             }
         }
 

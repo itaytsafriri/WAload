@@ -24,6 +24,12 @@
                             From="#007ACC" To="#00CFFF" Duration="0:0:1"/>
         </Storyboard>
 
+        <!-- Connect Button Flash Animation -->
+        <Storyboard x:Key="ConnectButtonFlashAnimation" RepeatBehavior="Forever" AutoReverse="True">
+            <ColorAnimation Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                            From="#28A745" To="#20C997" Duration="0:0:1"/>
+        </Storyboard>
+
         <!-- Processing Icon Rotation Animation -->
         <Storyboard x:Key="ProcessingIconRotationAnimation" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="ProcessingIconRotation" Storyboard.TargetProperty="Angle"
@@ -79,7 +85,35 @@
                 <Trigger Property="IsPressed" Value="True">
                     <Setter Property="Background" Value="#1E7E34"/>
                 </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#6C757D"/>
+                    <Setter Property="Foreground" Value="#ADB5BD"/>
+                </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- Red Button Style -->
+        <Style x:Key="RedButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#DC3545"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#C82333"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#BD2130"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#6C757D"/>
+                    <Setter Property="Foreground" Value="#ADB5BD"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Disabled Button Style -->
+        <Style x:Key="DisabledButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#6C757D"/>
+            <Setter Property="Foreground" Value="#ADB5BD"/>
+            <Setter Property="IsEnabled" Value="False"/>
         </Style>
 
         <!-- Modern TextBox Style -->
@@ -173,11 +207,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- Red button style for Logout and Stop Monitoring -->
-        <Style x:Key="RedButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-            <Setter Property="Background" Value="#E74C3C"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
+
         <LinearGradientBrush x:Key="MacStripedBrush" StartPoint="0,0" EndPoint="1,0">
             <GradientStop Color="#e0e6ed" Offset="0"/>
             <GradientStop Color="#b3c6e2" Offset="0.25"/>
@@ -255,9 +285,17 @@
 
                 <!-- Connection Controls -->
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,10">
-                    <Button x:Name="ConnectButton" Content="Connect to WhatsApp" 
-                            Style="{StaticResource ModernButton}"
-                            Click="ConnectButton_Click"/>
+                    <Button x:Name="ConnectButton" Content="Connect" 
+                            Style="{StaticResource SuccessButton}"
+                            Click="ConnectButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ConnectButtonBackground" Background="{TemplateBinding Background}" CornerRadius="8">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                     <Button x:Name="LogoutButton" Content="Logout" 
                             Style="{StaticResource RedButton}"
                             Click="LogoutButton_Click"
@@ -281,7 +319,8 @@
                     <Button x:Name="StopMonitorButton" Content="Stop Monitoring" 
                             Style="{StaticResource RedButton}"
                             Click="StopMonitorButton_Click"
-                            IsEnabled="{Binding IsMonitoring}"/>
+                            IsEnabled="{Binding IsMonitoring}"
+                            Margin="16,0,0,0"/>
                 </StackPanel>
 
                 <!-- Download Folder -->
@@ -366,6 +405,7 @@
                         <MenuItem Header="Copy File Path" Click="CopyFilePathMenuItem_Click"/>
                         <MenuItem Header="Rename File" Click="RenameFileMenuItem_Click"/>
                         <Separator/>
+                        <MenuItem Header="Media Processing" Click="MediaProcessingMenuItem_Click"/>
                         <MenuItem Header="Delete File" Click="DeleteFileMenuItem_Click"/>
                     </ContextMenu>
                 </ListView.ContextMenu>
@@ -397,16 +437,15 @@
                     VerticalAlignment="Center"
                     Effect="{StaticResource ModernShadow}">
                 <StackPanel>
-                    <!-- Processing Icon -->
+                    <!-- Processing Icon - Spinning Cog -->
                     <Grid Width="60" Height="60" Margin="0,0,0,20" HorizontalAlignment="Center">
-                        <Ellipse Fill="#E3F2FD" Stroke="#2196F3" StrokeThickness="2"/>
-                        <Path Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z" 
+                        <Path Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" 
                               Fill="#2196F3" 
-                              Width="30" Height="30" 
+                              Width="40" Height="40" 
                               HorizontalAlignment="Center" 
                               VerticalAlignment="Center">
                             <Path.RenderTransform>
-                                <RotateTransform x:Name="ProcessingIconRotation" CenterX="15" CenterY="15"/>
+                                <RotateTransform x:Name="ProcessingIconRotation" CenterX="20" CenterY="20"/>
                             </Path.RenderTransform>
                         </Path>
                     </Grid>
@@ -427,38 +466,6 @@
                               Foreground="#666666"
                               TextWrapping="Wrap"
                               MaxWidth="300"/>
-
-                    <!-- Progress Bar -->
-                    <Border Background="#E0E0E0" 
-                            Height="12" 
-                            CornerRadius="6" 
-                            Margin="0,0,0,15"
-                            Effect="{StaticResource ModernShadow}">
-                        <Grid>
-                            <!-- Background -->
-                            <Border Background="#F5F5F5" CornerRadius="6"/>
-
-                            <!-- Progress Fill -->
-                            <Border x:Name="ProgressFill" 
-                                    Background="{StaticResource ProgressGradient}" 
-                                    CornerRadius="6" 
-                                    HorizontalAlignment="Center"
-                                    Width="{Binding ProcessingProgress, Converter={StaticResource ProgressToWidthConverter}}" Margin="0,-24,0,24">
-                                <Border.Effect>
-                                    <DropShadowEffect Color="#4CAF50" BlurRadius="8" ShadowDepth="2" Opacity="0.6"/>
-                                </Border.Effect>
-                            </Border>
-
-                            <!-- Progress Text Overlay -->
-                            <TextBlock Text="{Binding ProcessingProgressText}" 
-                                      FontSize="10" 
-                                      FontWeight="Bold"
-                                      Foreground="White"
-                                      HorizontalAlignment="Center" 
-                                      VerticalAlignment="Top"
-                                      Effect="{StaticResource TextShadow}" Margin="0,-3,0,0"/>
-                        </Grid>
-                    </Border>
 
                     <!-- Cancel Button -->
                     <Button Content="Cancel Processing" 
@@ -496,15 +503,16 @@
         <!-- QR Code Dialog -->
         <Border x:Name="QrCodeOverlay" Grid.RowSpan="4" 
                 Background="#80000000" Visibility="Collapsed">
-            <Border Background="White" CornerRadius="8" Padding="20" 
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border x:Name="QrAnimatedBorder" Background="White" CornerRadius="8" Padding="20" 
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    BorderBrush="#007ACC" BorderThickness="2">
                 <Border.Effect>
                     <DropShadowEffect Color="#007ACC" BlurRadius="20" ShadowDepth="0" Opacity="0.3"/>
                 </Border.Effect>
                 <StackPanel>
                     <TextBlock Text="Scan QR Code" FontSize="18" FontWeight="Bold" 
                                HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                    <Border x:Name="QrAnimatedBorder" BorderBrush="#007ACC" BorderThickness="2" CornerRadius="4" Padding="10" Margin="0,0,0,15">
+                    <Border BorderBrush="#007ACC" BorderThickness="2" CornerRadius="4" Padding="10" Margin="0,0,0,15">
                         <Border.Effect>
                             <DropShadowEffect Color="#007ACC" BlurRadius="10" ShadowDepth="0" Opacity="0.2"/>
                         </Border.Effect>
