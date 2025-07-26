@@ -18,6 +18,7 @@
         <local:InvertedBooleanToVisibilityConverter x:Key="InvertedBoolToVis" />
         <local:NotNullToVisibilityConverter x:Key="NotNullToVis" />
         <local:NullToVisibilityConverter x:Key="NullToVis" />
+        <local:ToUpperConverter x:Key="ToUpperConverter" />
         <!-- QR Border Animation -->
         <Storyboard x:Key="QrBorderGlowAnimation" RepeatBehavior="Forever" AutoReverse="True">
             <ColorAnimation Storyboard.TargetName="QrAnimatedBorder" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
@@ -61,6 +62,12 @@
             </Setter>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
+        <!-- Compact Button Style for Browse -->
+        <Style x:Key="CompactButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinWidth" Value="70"/>
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
 
         <!-- Danger Button Style -->
         <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
@@ -95,6 +102,7 @@
         <!-- Red Button Style -->
         <Style x:Key="RedButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
             <Setter Property="Background" Value="#DC3545"/>
+            <Setter Property="Foreground" Value="White"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#C82333"/>
@@ -185,6 +193,7 @@
 
         <!-- Progress to Width Converter -->
         <local:ProgressToWidthConverter x:Key="ProgressToWidthConverter"/>
+        <local:ThumbnailWidthConverter x:Key="ThumbnailWidthConverter" ThumbnailColumn="{Binding ElementName=ThumbnailColumn}"/>
         <!-- Replace Media Processing radio button with toggle switch -->
         <!-- Add ToggleSwitch style -->
         <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
@@ -319,19 +328,41 @@
                 <!-- Monitoring Controls -->
                 <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
                     <TextBlock Text="Select Group:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ComboBox x:Name="GroupsComboBox" Width="292" 
+                    <ComboBox x:Name="GroupsComboBox" Width="350"
                               Style="{StaticResource ModernComboBox}"
                               DisplayMemberPath="Name"
                               SelectedValuePath="Id"
                               ItemsSource="{Binding Groups}"
                               SelectionChanged="GroupsComboBox_SelectionChanged"
-                              IsEnabled="{Binding IsGroupSelectionEnabled}"/>
+                              IsEnabled="{Binding IsGroupSelectionEnabled}"
+                              FontSize="20">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" FontSize="20"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <Button x:Name="MonitorButton" 
-                            Content="{Binding MonitorButtonText}"
                             Style="{Binding MonitorButtonStyle}"
                             Click="MonitorButton_Click"
                             IsEnabled="{Binding IsMonitorButtonEnabled}"
-                            Margin="16,0,0,0"/>
+                            Margin="16,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▶" 
+                                       FontSize="16" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,8,0"
+                                       Visibility="{Binding IsMonitoring, Converter={StaticResource InvertedBoolToVis}}"/>
+                            <TextBlock Text="⏹" 
+                                       FontSize="16" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,8,0"
+                                       Visibility="{Binding IsMonitoring, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="Monitoring" 
+                                       FontSize="18" 
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Download Folder -->
@@ -339,8 +370,9 @@
                     <TextBlock Text="Download Folder:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBox x:Name="DownloadFolderTextBox" Width="250" 
                              Style="{StaticResource ModernTextBox}"
-                             Text="{Binding DownloadFolder}"/>
-                    <Button Content="Browse" Style="{StaticResource ModernButton}"
+                             Text="{Binding DownloadFolder, Converter={StaticResource ToUpperConverter}}"
+                             IsReadOnly="True"/>
+                    <Button Content="Browse" Style="{StaticResource CompactButton}"
                             Click="BrowseFolderButton_Click"/>
                 </StackPanel>
 
@@ -391,12 +423,13 @@
                       MouseDoubleClick="MediaListView_MouseDoubleClick">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Thumbnail" Width="100">
+                        <GridViewColumn Header="Thumbnail" Width="100" x:Name="ThumbnailColumn">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Grid Width="100" Height="60">
-                                        <Image Source="{Binding Thumbnail}" 
-                                               Width="100" Height="60"
+                                    <Grid>
+                                        <Image Source="{Binding Thumbnail}"
+                                               Width="{Binding RelativeSource={RelativeSource AncestorType=ListView}, Path=ActualWidth, Converter={StaticResource ThumbnailWidthConverter}}"
+                                               Height="60"
                                                Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
                                                Visibility="{Binding Thumbnail, Converter={StaticResource NotNullToVis}}"/>
                                         <Border Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="1" 

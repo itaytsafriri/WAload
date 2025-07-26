@@ -86,6 +86,34 @@ namespace WAload
         }
     }
 
+    public class ToUpperConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            return value?.ToString()?.ToUpper() ?? string.Empty;
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            return value?.ToString() ?? string.Empty;
+        }
+    }
+
+    public class ThumbnailWidthConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            // value is the ListView's ActualWidth, but we want the column width
+            // fallback to 100 if not available
+            if (parameter is GridViewColumn column && column.Width > 0)
+                return column.Width;
+            return 100.0;
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly IWhatsAppService _whatsAppService;
@@ -111,6 +139,7 @@ namespace WAload
         private CancellationTokenSource? _processingCancellationTokenSource;
         private readonly string _tempProcessingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAloadTemp");
         private bool _isLicenseValid = false;
+        private readonly HashSet<string> _processedMediaIds = new HashSet<string>();
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -863,6 +892,18 @@ namespace WAload
             {
                 try
                 {
+                    // Check for duplicate media using ID + timestamp + sender combination
+                    string mediaKey = $"{mediaMessage.Id}_{mediaMessage.Timestamp}_{mediaMessage.From}";
+                    if (_processedMediaIds.Contains(mediaKey))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[OnMediaMessageReceived] Duplicate media detected, skipping: {mediaKey}");
+                        return;
+                    }
+                    
+                    // Add to processed set
+                    _processedMediaIds.Add(mediaKey);
+                    System.Diagnostics.Debug.WriteLine($"[OnMediaMessageReceived] Processing new media: {mediaKey}");
+                    
                     System.Diagnostics.Debug.WriteLine($"Media message received: {mediaMessage.Type} - {mediaMessage.Filename}");
                     StatusMessage = "Downloading media...";
                     
