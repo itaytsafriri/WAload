@@ -11,9 +11,9 @@ namespace WAload
         {
             if (value is bool boolValue)
             {
-                return !boolValue ? Visibility.Visible : Visibility.Collapsed;
+                return boolValue ? Visibility.Collapsed : Visibility.Visible;
             }
-            return Visibility.Collapsed;
+            return Visibility.Visible;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -52,18 +52,15 @@ namespace WAload
         }
     }
 
-    public class ProgressToWidthConverter : IValueConverter
+    public class ToUpperConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double progress && parameter is string maxWidthStr)
+            if (value is string stringValue)
             {
-                if (double.TryParse(maxWidthStr, out double maxWidth))
-                {
-                    return Math.Max(0, Math.Min(maxWidth, progress * maxWidth));
-                }
+                return stringValue.ToUpper();
             }
-            return 0.0;
+            return value;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -72,11 +69,15 @@ namespace WAload
         }
     }
 
-    public class ToUpperConverter : IValueConverter
+    public class ProgressToWidthConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return value?.ToString()?.ToUpper() ?? string.Empty;
+            if (value is double progress && parameter is double maxWidth)
+            {
+                return Math.Max(0, Math.Min(maxWidth, progress * maxWidth / 100.0));
+            }
+            return 0.0;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -89,15 +90,8 @@ namespace WAload
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double containerWidth)
-            {
-                // Calculate thumbnail width based on container width
-                // Assuming we want 3 thumbnails per row with some spacing
-                double spacing = 10;
-                double thumbnailsPerRow = 3;
-                return Math.Max(100, (containerWidth - (spacing * (thumbnailsPerRow + 1))) / thumbnailsPerRow);
-            }
-            return 150.0; // Default width
+            // Default thumbnail width of 120 pixels
+            return 120.0;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -21237,26 +21237,7 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_2901692A687A4AF68AC63B4D42F5B683"
-            {
-            "SourcePath" = "8:..\\..\\WAload\\bin\\Release\\net9.0-windows\\win-x64\\publish\\waload_license.key"
-            "TargetName" = "8:waload_license.key"
-            "Tag" = "8:"
-            "Folder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
+
             "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_296C01DBF9A54C86879D3AC3062CADF4"
             {
             "AssemblyRegister" = "3:1"
@@ -23733,26 +23714,7 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_57AF313A82C44939BAC203B9B940B582"
-            {
-            "SourcePath" = "8:..\\..\\WAload\\bin\\Release\\net9.0-windows\\win-x64\\publish\\waload_machine.id"
-            "TargetName" = "8:waload_machine.id"
-            "Tag" = "8:"
-            "Folder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
+
             "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_59EB6FF73B5ABB3CA3A92C80BF2891F0"
             {
             "AssemblyRegister" = "3:1"

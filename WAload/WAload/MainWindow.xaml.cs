@@ -41,6 +41,7 @@ namespace WAload
         private bool _isGroupsLoaded;
         private string _loggedInUserName = string.Empty;
         private bool _isLoggingOut = false;
+        private bool _isFetchingGroups = false;
         private FileSystemWatcher? _fileWatcher;
         private System.Threading.Timer? _refreshTimer;
         private bool _refreshPending = false;
@@ -552,8 +553,15 @@ namespace WAload
 
         private async void GetGroupsButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_isFetchingGroups)
+            {
+                StatusMessage = "Group fetch already in progress...";
+                return;
+            }
+
             try
             {
+                _isFetchingGroups = true;
                 StatusMessage = "Fetching groups...";
                 await _whatsAppService.GetGroupsAsync();
             }
@@ -562,6 +570,10 @@ namespace WAload
                 StatusMessage = $"Failed to get groups: {ex.Message}";
                 System.Windows.MessageBox.Show($"Failed to get groups: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _isFetchingGroups = false;
             }
         }
 
@@ -800,16 +812,24 @@ namespace WAload
                     QrCodeOverlay.Visibility = Visibility.Collapsed;
                     StatusMessage = $"Connected as {_loggedInUserName}";
                     
-                    // Automatically start fetching groups when connected
-                    try
+                    // Automatically start fetching groups when connected (only if not already fetching)
+                    if (!_isFetchingGroups && !IsGroupsLoaded)
                     {
-                        ShowProgressModal("Loading Groups", "Fetching WhatsApp groups...");
-                        await _whatsAppService.GetGroupsAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        HideProgressModal();
-                        StatusMessage = $"Failed to load groups: {ex.Message}";
+                        try
+                        {
+                            _isFetchingGroups = true;
+                            ShowProgressModal("Loading Groups", "Fetching WhatsApp groups...");
+                            await _whatsAppService.GetGroupsAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            HideProgressModal();
+                            StatusMessage = $"Failed to load groups: {ex.Message}";
+                        }
+                        finally
+                        {
+                            _isFetchingGroups = false;
+                        }
                     }
                 }
                 else

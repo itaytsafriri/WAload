@@ -120,7 +120,10 @@ namespace WAload.Services
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8,
+                StandardInputEncoding = System.Text.Encoding.UTF8
             };
 
             System.Diagnostics.Debug.WriteLine($"Starting Node.js process with: {startInfo.FileName} {startInfo.Arguments}");
@@ -167,7 +170,8 @@ namespace WAload.Services
                 {
                     PropertyNameCaseInsensitive = true,
                     AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
+                    ReadCommentHandling = JsonCommentHandling.Skip,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
                 };
                 var message = JsonSerializer.Deserialize<NodeMessage>(e.Data, options);
                 if (message == null) 

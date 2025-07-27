@@ -38,7 +38,9 @@ process.on('unhandledRejection', (reason) => {
 });
 
 function sendToHost(message) {
-    console.log(JSON.stringify(message));
+    // Ensure proper UTF-8 encoding for Hebrew and other Unicode characters
+    const jsonString = JSON.stringify(message, null, 0);
+    console.log(jsonString);
 }
 
 // Standalone mode functions
@@ -350,7 +352,7 @@ async function fetchAndSendGroups() {
                 .filter(chat => chat.isGroup)
                 .map(chat => ({
                     id: chat.id._serialized,
-                    name: chat.name
+                    name: chat.name || chat.formattedTitle || 'Unknown Group'
                 }));
             log(`Found ${groups.length} groups from chats`);
         } else {
@@ -405,6 +407,10 @@ async function fetchAndSendGroups() {
     } catch (error) {
         log(`Error fetching groups: ${error.message}`);
         sendToHost({ type: 'groups', groups: [], error: error.message });
+    } finally {
+        // Always reset the flag when done
+        isFetchingGroups = false;
+        log('Group fetch completed, flag reset');
     }
 }
 

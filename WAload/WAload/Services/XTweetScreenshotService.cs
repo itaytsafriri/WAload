@@ -195,27 +195,39 @@ async function takeTweetScreenshot(tweetUrl, outputPath) {
         if (tweetElement) {
             console.log('Found tweet element, taking cropped screenshot...');
             
-            // Get the bounding box of the tweet element
-            const boundingBox = await tweetElement.boundingBox();
-            
-            // Calculate crop dimensions to remove the blue banner
-            // The banner is typically about 80-120px tall at the bottom
-            const bannerHeight = 120; // Increased height to ensure we crop enough
-            const croppedHeight = Math.max(boundingBox.height - bannerHeight, 200); // Ensure minimum height
-            
-            console.log(`Original tweet height: ${boundingBox.height}, Cropped height: ${croppedHeight}`);
-            
-            // Take screenshot of the tweet element with cropping
-            await tweetElement.screenshot({
-                path: outputPath,
-                type: 'png',
-                clip: {
-                    x: boundingBox.x,
-                    y: boundingBox.y,
-                    width: boundingBox.width,
-                    height: croppedHeight
-                }
-            });
+            try {
+                // Get the bounding box of the tweet element
+                const boundingBox = await tweetElement.boundingBox();
+                console.log('Bounding box obtained:', JSON.stringify(boundingBox));
+                
+                // Calculate crop dimensions to remove the blue banner
+                // The banner is typically about 80-120px tall at the bottom
+                const bannerHeight = 120; // Increased height to ensure we crop enough
+                const croppedHeight = Math.max(boundingBox.height - bannerHeight, 200); // Ensure minimum height
+                
+                console.log(`Original tweet height: ${boundingBox.height}, Cropped height: ${croppedHeight}`);
+                
+                // Take screenshot of the tweet element with cropping
+                await tweetElement.screenshot({
+                    path: outputPath,
+                    type: 'png',
+                    clip: {
+                        x: boundingBox.x,
+                        y: boundingBox.y,
+                        width: boundingBox.width,
+                        height: croppedHeight
+                    }
+                });
+                console.log('Cropped screenshot taken successfully');
+            } catch (error) {
+                console.log('Error in cropping logic:', error.message);
+                // Fallback to regular screenshot without cropping
+                await tweetElement.screenshot({
+                    path: outputPath,
+                    type: 'png'
+                });
+                console.log('Fallback screenshot taken without cropping');
+            }
         } else {
             // Fallback: take screenshot of the whole page with cropping
             console.log('Tweet element not found, taking full page screenshot with cropping');
