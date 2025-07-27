@@ -14,12 +14,14 @@ namespace WAload
             {
                 DownloadXTweets = currentSettings.DownloadXTweets,
                 DownloadFolder = currentSettings.DownloadFolder,
-                IsMediaProcessingEnabled = currentSettings.IsMediaProcessingEnabled
+                IsMediaProcessingEnabled = currentSettings.IsMediaProcessingEnabled,
+                SaveAsMxfForAvid = currentSettings.SaveAsMxfForAvid
             };
 
             // Bind the toggles to the settings
             DownloadXTweetsToggle.IsChecked = Settings.DownloadXTweets;
             MediaProcessingToggle.IsChecked = Settings.IsMediaProcessingEnabled;
+            SaveAsMxfToggle.IsChecked = Settings.SaveAsMxfForAvid;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -27,6 +29,7 @@ namespace WAload
             // Update settings from UI
             Settings.DownloadXTweets = DownloadXTweetsToggle.IsChecked ?? false;
             Settings.IsMediaProcessingEnabled = MediaProcessingToggle.IsChecked ?? false;
+            Settings.SaveAsMxfForAvid = SaveAsMxfToggle.IsChecked ?? false;
 
             DialogResult = true;
             Close();

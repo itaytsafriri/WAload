@@ -1168,16 +1168,17 @@ namespace WAload
                     }
                 });
 
-                // Create processed filename
+                // Create processed filename with correct extension based on MXF setting
                 var fileName = Path.GetFileNameWithoutExtension(originalFilePath);
-                var newFileName = $"{fileName}_processed{extension}";
+                var outputExtension = _appSettings.SaveAsMxfForAvid && (extension == ".mp4" || extension == ".avi" || extension == ".mov" || extension == ".wmv") ? ".mxf" : extension;
+                var newFileName = $"{fileName}_processed{outputExtension}";
                 var processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
 
                 // Ensure unique filename
                 var counter = 1;
                 while (File.Exists(processedFilePath))
                 {
-                    newFileName = $"{fileName}_processed_{counter}{extension}";
+                    newFileName = $"{fileName}_processed_{counter}{outputExtension}";
                     processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
                     counter++;
                 }
@@ -1195,7 +1196,8 @@ namespace WAload
                             ProcessingProgressText = $"Processing... {(progress * 100):F0}%";
                         });
                     },
-                    cancellationToken);
+                    cancellationToken,
+                    _appSettings.SaveAsMxfForAvid);
 
                 // CRITICAL FIX: Check if processed file exists, regardless of success flag
                 var processedFileExists = File.Exists(processedFilePath);
@@ -1855,6 +1857,7 @@ namespace WAload
                 ".avi" => "video/avi",
                 ".mov" => "video/mov",
                 ".wmv" => "video/wmv",
+                ".mxf" => "video/mxf",
                 ".mp3" => "audio/mp3",
                 ".wav" => "audio/wav",
                 ".ogg" => "audio/ogg",
@@ -2338,7 +2341,7 @@ namespace WAload
         /// </summary>
         private bool IsMediaFile(string extension)
         {
-            var mediaExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".mp4", ".avi", ".mov", ".wmv" };
+            var mediaExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".mp4", ".avi", ".mov", ".wmv", ".mxf" };
             return mediaExtensions.Contains(extension.ToLower());
         }
 
@@ -2348,7 +2351,7 @@ namespace WAload
         private string GetMediaType(string extension)
         {
             var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
-            var videoExtensions = new[] { ".mp4", ".avi", ".mov", ".wmv" };
+            var videoExtensions = new[] { ".mp4", ".avi", ".mov", ".wmv", ".mxf" };
 
             if (imageExtensions.Contains(extension.ToLower()))
                 return "image";

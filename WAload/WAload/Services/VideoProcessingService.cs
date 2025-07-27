@@ -33,8 +33,9 @@ namespace WAload.Services
         /// <param name="outputPath">Path where the processed file will be saved</param>
         /// <param name="progress">Optional callback for progress reporting (0.0 - 1.0)</param>
         /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <param name="saveAsMxf">Whether to save videos as MXF for Avid compatibility</param>
         /// <returns>True if conversion was successful, false otherwise</returns>
-        public async Task<bool> ConvertTo16x9WithBlurredBackground(string inputPath, string outputPath, Action<double>? progress = null, CancellationToken cancellationToken = default)
+        public async Task<bool> ConvertTo16x9WithBlurredBackground(string inputPath, string outputPath, Action<double>? progress = null, CancellationToken cancellationToken = default, bool saveAsMxf = false)
         {
             try
             {
@@ -86,7 +87,7 @@ namespace WAload.Services
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Processing video file: {Path.GetFileName(inputPath)}");
-                    var result = await ConvertVideoTo16x9WithBlurredBackground(inputPath, outputPath, progress, cancellationToken);
+                    var result = await ConvertVideoTo16x9WithBlurredBackground(inputPath, outputPath, progress, cancellationToken, saveAsMxf);
                     progress?.Invoke(1.0); // Ensure progress callback is called on completion
                     return result;
                 }
@@ -133,27 +134,38 @@ namespace WAload.Services
         /// <summary>
         /// Converts a video to 16:9 aspect ratio with blurred background
         /// </summary>
-        private async Task<bool> ConvertVideoTo16x9WithBlurredBackground(string inputPath, string outputPath, Action<double>? progress = null, CancellationToken cancellationToken = default)
+        private async Task<bool> ConvertVideoTo16x9WithBlurredBackground(string inputPath, string outputPath, Action<double>? progress = null, CancellationToken cancellationToken = default, bool saveAsMxf = false)
         {
             Process? blurProcess = null;
             try
             {
                 _currentProcess = null;
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Starting blur background conversion: {Path.GetFileName(inputPath)}");
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] MXF mode: {saveAsMxf}");
                 
                 progress?.Invoke(0.1); // 10% - Starting
 
                 // Use system temp directory for all processing
                 var tempDir = Path.GetTempPath();
-                var tempOutputPath = Path.Combine(tempDir, $"temp_{Guid.NewGuid()}.mp4");
+                var tempExtension = saveAsMxf ? ".mxf" : ".mp4";
+                var tempOutputPath = Path.Combine(tempDir, $"temp_{Guid.NewGuid()}{tempExtension}");
                 
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Using temp directory: {tempDir}");
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Temp output path: {tempOutputPath}");
 
                 try
                 {
-                    // Single FFmpeg command with blur background (advanced, with overlay)
-                    var blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p\" -c:v libx264 -preset medium -crf 23 -movflags +faststart \"{tempOutputPath}\"";
+                    string blurArgs;
+                    if (saveAsMxf)
+                    {
+                        // MXF command for Avid compatibility with MPEG-2 video
+                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080,format=yuv420p[bg_stream];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,format=yuv420p[fg_stream];[bg_stream][fg_stream]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p[processed_visuals];[processed_visuals]format=yuv422p,fieldorder=tff[final_video_out]\" -map \"[final_video_out]\" -map 0:a -c:v mpeg2video -r 25 -pix_fmt yuv422p -b:v 50M -minrate 50M -maxrate 50M -bufsize 7500000 -flags +ildct+ilme -g 12 -bf 2 -color_range tv -c:a pcm_s24le \"{tempOutputPath}\"";
+                    }
+                    else
+                    {
+                        // Standard MP4 command
+                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p\" -c:v libx264 -preset medium -crf 23 -movflags +faststart \"{tempOutputPath}\"";
+                    }
                     
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Running blur command: {blurArgs}");
                     

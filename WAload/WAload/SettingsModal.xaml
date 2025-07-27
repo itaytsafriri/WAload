@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings" 
-        Height="400" Width="500"
+        Height="550" Width="500"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#F8F9FA"
@@ -149,6 +149,37 @@
                     
                     <ToggleButton Grid.Column="1" 
                                   x:Name="MediaProcessingToggle"
+                                  Style="{StaticResource ToggleSwitchStyle}"
+                                  VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- MXF for Avid Setting -->
+            <Border Background="White" 
+                    BorderBrush="#DEE2E6" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Save as MXF for Avid" 
+                                   FontSize="18" FontWeight="SemiBold" 
+                                   Margin="0,0,0,5"
+                                   Foreground="#212121"/>
+                        <TextBlock Text="Save processed videos in MXF format with DNxHD codec for Avid Media Composer compatibility" 
+                                   FontSize="14" 
+                                   Foreground="#6C757D"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <ToggleButton Grid.Column="1" 
+                                  x:Name="SaveAsMxfToggle"
                                   Style="{StaticResource ToggleSwitchStyle}"
                                   VerticalAlignment="Center"/>
                 </Grid>

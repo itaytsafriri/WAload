@@ -7,6 +7,7 @@ namespace WAload.Models
         private bool _downloadXTweets = false;
         private string _downloadFolder = string.Empty;
         private bool _isMediaProcessingEnabled = false;
+        private bool _saveAsMxfForAvid = false;
 
         public bool DownloadXTweets
         {
@@ -43,6 +44,19 @@ namespace WAload.Models
                 {
                     _isMediaProcessingEnabled = value;
                     OnPropertyChanged(nameof(IsMediaProcessingEnabled));
+                }
+            }
+        }
+
+        public bool SaveAsMxfForAvid
+        {
+            get => _saveAsMxfForAvid;
+            set
+            {
+                if (_saveAsMxfForAvid != value)
+                {
+                    _saveAsMxfForAvid = value;
+                    OnPropertyChanged(nameof(SaveAsMxfForAvid));
                 }
             }
         }
