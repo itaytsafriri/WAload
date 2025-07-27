@@ -12,24 +12,27 @@ namespace WAload
             InitializeComponent();
             Settings = new AppSettings
             {
-                DownloadXTweets = currentSettings.DownloadXTweets,
+                ScreenshotXTweets = currentSettings.ScreenshotXTweets,
                 DownloadFolder = currentSettings.DownloadFolder,
                 IsMediaProcessingEnabled = currentSettings.IsMediaProcessingEnabled,
-                SaveAsMxfForAvid = currentSettings.SaveAsMxfForAvid
+                SaveAsMxfForAvid = currentSettings.SaveAsMxfForAvid,
+                DownloadSocialMediaVideos = currentSettings.DownloadSocialMediaVideos
             };
 
             // Bind the toggles to the settings
-            DownloadXTweetsToggle.IsChecked = Settings.DownloadXTweets;
+            ScreenshotXTweetsToggle.IsChecked = Settings.ScreenshotXTweets;
             MediaProcessingToggle.IsChecked = Settings.IsMediaProcessingEnabled;
             SaveAsMxfToggle.IsChecked = Settings.SaveAsMxfForAvid;
+            DownloadSocialMediaVideosToggle.IsChecked = Settings.DownloadSocialMediaVideos;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             // Update settings from UI
-            Settings.DownloadXTweets = DownloadXTweetsToggle.IsChecked ?? false;
+            Settings.ScreenshotXTweets = ScreenshotXTweetsToggle.IsChecked ?? false;
             Settings.IsMediaProcessingEnabled = MediaProcessingToggle.IsChecked ?? false;
             Settings.SaveAsMxfForAvid = SaveAsMxfToggle.IsChecked ?? false;
+            Settings.DownloadSocialMediaVideos = DownloadSocialMediaVideosToggle.IsChecked ?? false;
 
             DialogResult = true;
             Close();

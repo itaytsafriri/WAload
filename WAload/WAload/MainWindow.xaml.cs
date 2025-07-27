@@ -30,6 +30,7 @@ namespace WAload
         private readonly IWhatsAppService _whatsAppService;
         private readonly VideoProcessingService _videoProcessingService;
         private readonly XTweetScreenshotService _xTweetScreenshotService;
+        private SocialMediaVideoService _socialMediaVideoService;
         private readonly SettingsService _settingsService;
         private AppSettings _appSettings;
         private readonly ObservableCollection<MediaItem> _mediaItems;
@@ -55,6 +56,7 @@ namespace WAload
         private readonly string _tempProcessingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WAloadTemp");
         private bool _isLicenseValid = false;
         private readonly HashSet<string> _processedMediaIds = new HashSet<string>();
+        private readonly HashSet<string> _socialMediaDownloadedFiles = new HashSet<string>();
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -86,6 +88,9 @@ namespace WAload
                     
                     // Update X tweet service download folder
                     _xTweetScreenshotService?.SetDownloadFolder(value);
+                    
+                    // Update social media video service download folder
+                    _socialMediaVideoService = new SocialMediaVideoService(value);
                     
                     LoadExistingMedia();
                     SetupFileWatcher();
@@ -309,6 +314,9 @@ namespace WAload
             
             // Set download folder in X tweet service
             _xTweetScreenshotService.SetDownloadFolder(DownloadFolder);
+            
+            // Initialize social media video service
+            _socialMediaVideoService = new SocialMediaVideoService(DownloadFolder);
 
             SetupEventHandlers();
             LoadExistingMedia();
@@ -966,8 +974,8 @@ namespace WAload
                             {
                                 System.Diagnostics.Debug.WriteLine($"X tweet URL detected: {url}");
                                 
-                                // Check if X tweet downloads are enabled
-                                if (_appSettings.DownloadXTweets)
+                                // Check if X tweet screenshots are enabled
+                                if (_appSettings.ScreenshotXTweets)
                                 {
                                     StatusMessage = "Processing X tweet...";
                                     
@@ -1005,7 +1013,93 @@ namespace WAload
                                 }
                                 else
                                 {
-                                    System.Diagnostics.Debug.WriteLine("X tweet downloads are disabled in settings");
+                                    System.Diagnostics.Debug.WriteLine("X tweet screenshots are disabled in settings");
+                                }
+                            }
+                        }
+
+                        // Check for social media video links
+                        if (_appSettings.DownloadSocialMediaVideos && _socialMediaVideoService.ContainsSocialMediaVideoLinks(textMessage.Text))
+                        {
+                            System.Diagnostics.Debug.WriteLine("Social media video links detected in message");
+                            
+                            var videoUrls = _socialMediaVideoService.ExtractSocialMediaVideoLinks(textMessage.Text);
+                            var timestamp = DateTimeOffset.FromUnixTimeSeconds(textMessage.Timestamp ?? 0).DateTime;
+                            
+                            foreach (var videoUrl in videoUrls)
+                            {
+                                try
+                                {
+                                    StatusMessage = $"Downloading social media video from {videoUrl}...";
+                                    
+                                    var downloadedVideoPath = await _socialMediaVideoService.DownloadSocialMediaVideoAsync(
+                                        videoUrl,
+                                        textMessage.SenderName ?? "Unknown",
+                                        timestamp
+                                    );
+                                    
+                                                                            if (!string.IsNullOrEmpty(downloadedVideoPath))
+                                        {
+                                            StatusMessage = $"Social media video downloaded: {Path.GetFileName(downloadedVideoPath)}";
+                                            
+                                            // Mark this file as a social media download to prevent double processing
+                                            _socialMediaDownloadedFiles.Add(Path.GetFileName(downloadedVideoPath));
+                                            
+                                            // Add to media items list
+                                            var mediaItem = new MediaItem
+                                            {
+                                                FileName = Path.GetFileName(downloadedVideoPath),
+                                                FilePath = downloadedVideoPath,
+                                                MediaType = GetMediaType(Path.GetExtension(downloadedVideoPath)),
+                                                FileSize = new FileInfo(downloadedVideoPath).Length,
+                                                Timestamp = timestamp,
+                                                SenderName = textMessage.SenderName ?? "Unknown",
+                                                GroupId = textMessage.From ?? string.Empty
+                                            };
+                                            
+                                            _mediaItems.Add(mediaItem);
+                                            OnPropertyChanged(nameof(MediaItems));
+                                            
+                                            // Generate thumbnail asynchronously
+                                            _ = Task.Run(async () => await GenerateThumbnailAsync(mediaItem));
+                                            
+                                            // Process the video if media processing is enabled
+                                            if (_appSettings.IsMediaProcessingEnabled)
+                                            {
+                                                StatusMessage = $"Processing downloaded video: {Path.GetFileName(downloadedVideoPath)}";
+                                                
+                                                // Process asynchronously without blocking the UI
+                                                _ = Task.Run(async () =>
+                                                {
+                                                    try
+                                                    {
+                                                        await ProcessMediaFileAsync(downloadedVideoPath, mediaItem.MediaType);
+                                                        Dispatcher.Invoke(() => StatusMessage = $"Processed social media video: {Path.GetFileName(downloadedVideoPath)}");
+                                                    }
+                                                    catch (Exception ex)
+                                                    {
+                                                        Dispatcher.Invoke(() => 
+                                                        {
+                                                            StatusMessage = $"Failed to process social media video: {ex.Message}";
+                                                            System.Windows.MessageBox.Show($"Failed to process social media video: {ex.Message}", "Processing Error", 
+                                                                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    else
+                                    {
+                                        StatusMessage = $"Failed to download social media video from {videoUrl}";
+                                        System.Windows.MessageBox.Show($"Failed to download social media video from {videoUrl}", "Download Error", 
+                                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    StatusMessage = $"Error downloading social media video: {ex.Message}";
+                                    System.Windows.MessageBox.Show($"Error downloading social media video: {ex.Message}", "Download Error", 
+                                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                                 }
                             }
                         }
@@ -1603,6 +1697,13 @@ namespace WAload
                 if ((e.Name ?? "").Contains("_processed"))
                 {
                     System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileCreated for processed file: {e.Name}");
+                    return;
+                }
+
+                // Skip social media downloaded files (they are handled separately)
+                if (_socialMediaDownloadedFiles.Contains(e.Name ?? ""))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping OnFileCreated for social media downloaded file: {e.Name}");
                     return;
                 }
 

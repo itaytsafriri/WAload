@@ -4,20 +4,21 @@ namespace WAload.Models
 {
     public class AppSettings : INotifyPropertyChanged
     {
-        private bool _downloadXTweets = false;
+        private bool _screenshotXTweets = false;
         private string _downloadFolder = string.Empty;
         private bool _isMediaProcessingEnabled = false;
         private bool _saveAsMxfForAvid = false;
+        private bool _downloadSocialMediaVideos = false;
 
-        public bool DownloadXTweets
+        public bool ScreenshotXTweets
         {
-            get => _downloadXTweets;
+            get => _screenshotXTweets;
             set
             {
-                if (_downloadXTweets != value)
+                if (_screenshotXTweets != value)
                 {
-                    _downloadXTweets = value;
-                    OnPropertyChanged(nameof(DownloadXTweets));
+                    _screenshotXTweets = value;
+                    OnPropertyChanged(nameof(ScreenshotXTweets));
                 }
             }
         }
@@ -57,6 +58,19 @@ namespace WAload.Models
                 {
                     _saveAsMxfForAvid = value;
                     OnPropertyChanged(nameof(SaveAsMxfForAvid));
+                }
+            }
+        }
+
+        public bool DownloadSocialMediaVideos
+        {
+            get => _downloadSocialMediaVideos;
+            set
+            {
+                if (_downloadSocialMediaVideos != value)
+                {
+                    _downloadSocialMediaVideos = value;
+                    OnPropertyChanged(nameof(DownloadSocialMediaVideos));
                 }
             }
         }
