@@ -1019,6 +1019,10 @@ namespace WAload
                         }
 
                         // Check for social media video links
+                        System.Diagnostics.Debug.WriteLine($"[SocialMedia] DownloadSocialMediaVideos setting: {_appSettings.DownloadSocialMediaVideos}");
+                        System.Diagnostics.Debug.WriteLine($"[SocialMedia] Message text: {textMessage.Text}");
+                        System.Diagnostics.Debug.WriteLine($"[SocialMedia] ContainsSocialMediaVideoLinks result: {_socialMediaVideoService.ContainsSocialMediaVideoLinks(textMessage.Text)}");
+                        
                         if (_appSettings.DownloadSocialMediaVideos && _socialMediaVideoService.ContainsSocialMediaVideoLinks(textMessage.Text))
                         {
                             System.Diagnostics.Debug.WriteLine("Social media video links detected in message");
