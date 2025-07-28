@@ -57,6 +57,8 @@ namespace WAload
         private bool _isLicenseValid = false;
         private readonly HashSet<string> _processedMediaIds = new HashSet<string>();
         private readonly HashSet<string> _socialMediaDownloadedFiles = new HashSet<string>();
+        private object? _pendingBrowseSender;
+        private RoutedEventArgs? _pendingBrowseEventArgs;
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -649,7 +651,96 @@ namespace WAload
 
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                DownloadFolder = dialog.SelectedPath;
+                var selectedPath = dialog.SelectedPath;
+                
+                // Test for write permissions
+                if (!TestWritePermissions(selectedPath))
+                {
+                    ShowPermissionErrorModal(selectedPath, sender, e);
+                    return;
+                }
+                
+                DownloadFolder = selectedPath;
+            }
+        }
+
+        /// <summary>
+        /// Tests if the application has write permissions to the specified folder
+        /// </summary>
+        /// <param name="folderPath">The folder path to test</param>
+        /// <returns>True if write permissions are available, false otherwise</returns>
+        private bool TestWritePermissions(string folderPath)
+        {
+            try
+            {
+                // Create a temporary file to test write permissions
+                var testFileName = Path.Combine(folderPath, $"test_write_permission_{Guid.NewGuid()}.tmp");
+                
+                // Try to create a file
+                File.WriteAllText(testFileName, "test");
+                
+                // Try to delete the file
+                File.Delete(testFileName);
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PermissionTest] Write permission test failed for {folderPath}: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Shows a modal dialog explaining the permission error
+        /// </summary>
+        /// <param name="folderPath">The folder path that failed the permission test</param>
+        /// <param name="sender">The original sender of the browse button click</param>
+        /// <param name="e">The original event args</param>
+        private void ShowPermissionErrorModal(string folderPath, object sender, RoutedEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                PermissionErrorTitle.Text = "Permission Denied";
+                PermissionErrorMessage.Text = $"The application does not have write permissions to the selected folder:\n\n{folderPath}\n\nPlease select a different folder or run the application with administrator privileges.";
+                PermissionErrorModal.Visibility = Visibility.Visible;
+                
+                // Store the sender and event args for reopening the file selector
+                _pendingBrowseSender = sender;
+                _pendingBrowseEventArgs = e;
+            });
+        }
+
+        /// <summary>
+        /// Hides the permission error modal
+        /// </summary>
+        private void HidePermissionErrorModal()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                PermissionErrorModal.Visibility = Visibility.Collapsed;
+            });
+        }
+
+        /// <summary>
+        /// Handles the OK button click in the permission error modal
+        /// </summary>
+        private void PermissionErrorOK_Click(object sender, RoutedEventArgs e)
+        {
+            HidePermissionErrorModal();
+            
+            // Reopen the file selector after the user acknowledges the error
+            if (_pendingBrowseSender != null && _pendingBrowseEventArgs != null)
+            {
+                var senderToUse = _pendingBrowseSender;
+                var argsToUse = _pendingBrowseEventArgs;
+                
+                // Clear the pending values
+                _pendingBrowseSender = null;
+                _pendingBrowseEventArgs = null;
+                
+                // Reopen the file selector
+                Dispatcher.BeginInvoke(new Action(() => BrowseFolderButton_Click(senderToUse, argsToUse)));
             }
         }
 

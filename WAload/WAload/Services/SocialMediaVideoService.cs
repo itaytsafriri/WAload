@@ -70,7 +70,8 @@ namespace WAload.Services
                 @"(?:https?://)?(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+", // YouTube
                 @"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/[^\s]+", // X/Twitter
                 @"(?:https?://)?(?:www\.)?(?:facebook\.com|fb\.com)/[^\s]+", // Facebook
-                @"(?:https?://)?(?:www\.)?(?:tiktok\.com)/[^\s]+" // TikTok
+                @"(?:https?://)?(?:www\.)?(?:tiktok\.com)/[^\s]+", // TikTok
+                @"(?:https?://)?(?:www\.)?(?:instagram\.com)/[^\s]+" // Instagram
             };
 
             foreach (var pattern in patterns)
@@ -99,7 +100,8 @@ namespace WAload.Services
                 @"(?:https?://)?(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+", // YouTube
                 @"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/[^\s]+", // X/Twitter
                 @"(?:https?://)?(?:www\.)?(?:facebook\.com|fb\.com)/[^\s]+", // Facebook
-                @"(?:https?://)?(?:www\.)?(?:tiktok\.com)/[^\s]+" // TikTok
+                @"(?:https?://)?(?:www\.)?(?:tiktok\.com)/[^\s]+", // TikTok
+                @"(?:https?://)?(?:www\.)?(?:instagram\.com)/[^\s]+" // Instagram
             };
 
             var links = new List<string>();
