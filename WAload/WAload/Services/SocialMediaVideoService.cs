@@ -180,6 +180,9 @@ namespace WAload.Services
                     return null;
                 }
 
+                // Wait a moment for the file to be fully written
+                await Task.Delay(1000);
+
                 // Find the downloaded file
                 var downloadedFile = FindDownloadedFile(safeSenderName, timestampStr);
                 if (downloadedFile != null)
@@ -215,10 +218,28 @@ namespace WAload.Services
 
                 if (files.Length > 0)
                 {
-                    // Return the first (and should be only) file matching the pattern
-                    return files[0];
+                    // Filter out .json files and prefer video files
+                    var videoFiles = files.Where(f => !f.EndsWith(".json") && !f.EndsWith(".part")).ToArray();
+                    
+                    if (videoFiles.Length > 0)
+                    {
+                        // Return the first video file matching the pattern
+                        System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Found video file: {videoFiles[0]}");
+                        return videoFiles[0];
+                    }
+                    else
+                    {
+                        // If no video files found, return the first non-json file
+                        var nonJsonFiles = files.Where(f => !f.EndsWith(".json")).ToArray();
+                        if (nonJsonFiles.Length > 0)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Found non-json file: {nonJsonFiles[0]}");
+                            return nonJsonFiles[0];
+                        }
+                    }
                 }
 
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] No downloaded file found for pattern: {pattern}");
                 return null;
             }
             catch (Exception ex)
@@ -271,6 +292,103 @@ namespace WAload.Services
             catch (Exception ex)
             {
                 return $"Error getting version: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Updates yt-dlp to the latest version
+        /// </summary>
+        /// <returns>Update result message</returns>
+        public async Task<string> UpdateYtDlpAsync()
+        {
+            try
+            {
+                if (!File.Exists(_ytdlpPath))
+                {
+                    return "yt-dlp not found - cannot update";
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Starting yt-dlp update...");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ytdlpPath,
+                    Arguments = "-U", // Update command
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(_ytdlpPath)
+                };
+
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                var result = output.Trim();
+                if (!string.IsNullOrEmpty(error))
+                {
+                    result += $"\nError: {error.Trim()}";
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] yt-dlp update completed. Exit code: {process.ExitCode}");
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Update output: {result}");
+
+                if (process.ExitCode == 0)
+                {
+                    return $"Update successful: {result}";
+                }
+                else
+                {
+                    return $"Update failed (exit code {process.ExitCode}): {result}";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Error updating yt-dlp: {ex.Message}");
+                return $"Update error: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Checks if yt-dlp update is available
+        /// </summary>
+        /// <returns>True if update is available</returns>
+        public async Task<bool> IsYtDlpUpdateAvailableAsync()
+        {
+            try
+            {
+                if (!File.Exists(_ytdlpPath))
+                {
+                    return false;
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ytdlpPath,
+                    Arguments = "--check-update", // Check for updates
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(_ytdlpPath)
+                };
+
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                var output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                // If there's output, it means an update is available
+                return !string.IsNullOrEmpty(output.Trim());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Error checking yt-dlp update: {ex.Message}");
+                return false;
             }
         }
     }

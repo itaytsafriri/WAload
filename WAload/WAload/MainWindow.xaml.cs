@@ -325,6 +325,9 @@ namespace WAload
             // Check license on startup
             CheckLicense();
 
+            // Initialize yt-dlp on startup
+            _ = Task.Run(async () => await InitializeYtDlpAsync());
+
             // In MainWindow constructor or OnLoaded, hook up the toggle and animation
             Loaded += (s, e) =>
             {
@@ -867,10 +870,8 @@ namespace WAload
             Dispatcher.Invoke(() =>
             {
                 _groups.Clear();
-                // Sort groups by name to match WhatsApp order (alphabetical)
-                var sortedGroups = groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
                 
-                foreach (var group in sortedGroups)
+                foreach (var group in groups)
                 {
                     _groups.Add(group);
                 }
@@ -1034,6 +1035,7 @@ namespace WAload
                             {
                                 try
                                 {
+                                    ShowSocialMediaDownloadModal(videoUrl);
                                     StatusMessage = $"Downloading social media video from {videoUrl}...";
                                     
                                     var downloadedVideoPath = await _socialMediaVideoService.DownloadSocialMediaVideoAsync(
@@ -1042,58 +1044,61 @@ namespace WAload
                                         timestamp
                                     );
                                     
-                                                                            if (!string.IsNullOrEmpty(downloadedVideoPath))
+                                                                                                                if (!string.IsNullOrEmpty(downloadedVideoPath))
+                                    {
+                                        HideSocialMediaDownloadModal();
+                                        StatusMessage = $"Social media video downloaded: {Path.GetFileName(downloadedVideoPath)}";
+                                        
+                                        // Mark this file as a social media download to prevent double processing
+                                        _socialMediaDownloadedFiles.Add(Path.GetFileName(downloadedVideoPath));
+                                        
+                                        // Add to media items list
+                                        var mediaItem = new MediaItem
                                         {
-                                            StatusMessage = $"Social media video downloaded: {Path.GetFileName(downloadedVideoPath)}";
+                                            FileName = Path.GetFileName(downloadedVideoPath),
+                                            FilePath = downloadedVideoPath,
+                                            MediaType = GetMediaType(Path.GetExtension(downloadedVideoPath)),
+                                            FileSize = new FileInfo(downloadedVideoPath).Length,
+                                            Timestamp = timestamp,
+                                            SenderName = textMessage.SenderName ?? "Unknown",
+                                            GroupId = textMessage.From ?? string.Empty
+                                        };
+                                        
+                                        _mediaItems.Add(mediaItem);
+                                        OnPropertyChanged(nameof(MediaItems));
+                                        
+                                        // Generate thumbnail asynchronously
+                                        _ = Task.Run(async () => await GenerateThumbnailAsync(mediaItem));
+                                        
+                                        // Process the video if media processing is enabled
+                                        if (_appSettings.IsMediaProcessingEnabled)
+                                        {
+                                            StatusMessage = $"Processing downloaded video: {Path.GetFileName(downloadedVideoPath)}";
                                             
-                                            // Mark this file as a social media download to prevent double processing
-                                            _socialMediaDownloadedFiles.Add(Path.GetFileName(downloadedVideoPath));
-                                            
-                                            // Add to media items list
-                                            var mediaItem = new MediaItem
+                                            // Process asynchronously without blocking the UI
+                                            _ = Task.Run(async () =>
                                             {
-                                                FileName = Path.GetFileName(downloadedVideoPath),
-                                                FilePath = downloadedVideoPath,
-                                                MediaType = GetMediaType(Path.GetExtension(downloadedVideoPath)),
-                                                FileSize = new FileInfo(downloadedVideoPath).Length,
-                                                Timestamp = timestamp,
-                                                SenderName = textMessage.SenderName ?? "Unknown",
-                                                GroupId = textMessage.From ?? string.Empty
-                                            };
-                                            
-                                            _mediaItems.Add(mediaItem);
-                                            OnPropertyChanged(nameof(MediaItems));
-                                            
-                                            // Generate thumbnail asynchronously
-                                            _ = Task.Run(async () => await GenerateThumbnailAsync(mediaItem));
-                                            
-                                            // Process the video if media processing is enabled
-                                            if (_appSettings.IsMediaProcessingEnabled)
-                                            {
-                                                StatusMessage = $"Processing downloaded video: {Path.GetFileName(downloadedVideoPath)}";
-                                                
-                                                // Process asynchronously without blocking the UI
-                                                _ = Task.Run(async () =>
+                                                try
                                                 {
-                                                    try
+                                                    await Task.Delay(2000); // 2-second delay for FFmpeg
+                                                    await ProcessMediaFileAsync(downloadedVideoPath, mediaItem.MediaType);
+                                                    Dispatcher.Invoke(() => StatusMessage = $"Processed social media video: {Path.GetFileName(downloadedVideoPath)}");
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    Dispatcher.Invoke(() => 
                                                     {
-                                                        await ProcessMediaFileAsync(downloadedVideoPath, mediaItem.MediaType);
-                                                        Dispatcher.Invoke(() => StatusMessage = $"Processed social media video: {Path.GetFileName(downloadedVideoPath)}");
-                                                    }
-                                                    catch (Exception ex)
-                                                    {
-                                                        Dispatcher.Invoke(() => 
-                                                        {
-                                                            StatusMessage = $"Failed to process social media video: {ex.Message}";
-                                                            System.Windows.MessageBox.Show($"Failed to process social media video: {ex.Message}", "Processing Error", 
-                                                                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                                                        });
-                                                    }
-                                                });
-                                            }
+                                                        StatusMessage = $"Failed to process social media video: {ex.Message}";
+                                                        System.Windows.MessageBox.Show($"Failed to process social media video: {ex.Message}", "Processing Error", 
+                                                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                                                    });
+                                                }
+                                            });
                                         }
+                                    }
                                     else
                                     {
+                                        HideSocialMediaDownloadModal();
                                         StatusMessage = $"Failed to download social media video from {videoUrl}";
                                         System.Windows.MessageBox.Show($"Failed to download social media video from {videoUrl}", "Download Error", 
                                             System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
@@ -1101,6 +1106,7 @@ namespace WAload
                                 }
                                 catch (Exception ex)
                                 {
+                                    HideSocialMediaDownloadModal();
                                     StatusMessage = $"Error downloading social media video: {ex.Message}";
                                     System.Windows.MessageBox.Show($"Error downloading social media video: {ex.Message}", "Download Error", 
                                         System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
@@ -1114,6 +1120,81 @@ namespace WAload
                     System.Diagnostics.Debug.WriteLine($"Error processing text message: {ex.Message}");
                 }
             });
+        }
+
+        private void ShowSocialMediaDownloadModal(string url)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SocialMediaDownloadUrl.Text = url;
+                SocialMediaDownloadModal.Visibility = Visibility.Visible;
+            });
+        }
+
+        private void HideSocialMediaDownloadModal()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SocialMediaDownloadModal.Visibility = Visibility.Collapsed;
+            });
+        }
+
+        private async Task InitializeYtDlpAsync()
+        {
+            try
+            {
+                // Show initialization modal
+                Dispatcher.Invoke(() =>
+                {
+                    InitializationModal.Visibility = Visibility.Visible;
+                    // Disable connect button during initialization
+                    ConnectButton.IsEnabled = false;
+                });
+
+                // Update yt-dlp
+                var updateResult = await _socialMediaVideoService.UpdateYtDlpAsync();
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] yt-dlp update result: {updateResult}");
+
+                // Hide initialization modal
+                Dispatcher.Invoke(() =>
+                {
+                    InitializationModal.Visibility = Visibility.Collapsed;
+                    // Re-enable connect button after initialization
+                    ConnectButton.IsEnabled = true;
+                });
+
+                // Start 24-hour update timer
+                StartYtDlpUpdateTimer();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Error during yt-dlp initialization: {ex.Message}");
+                
+                // Hide modal and re-enable button even on error
+                Dispatcher.Invoke(() =>
+                {
+                    InitializationModal.Visibility = Visibility.Collapsed;
+                    ConnectButton.IsEnabled = true;
+                });
+            }
+        }
+
+        private void StartYtDlpUpdateTimer()
+        {
+            // Create a timer that fires after 24 hours
+            var updateTimer = new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine("[MainWindow] Running scheduled yt-dlp update...");
+                    var updateResult = await _socialMediaVideoService.UpdateYtDlpAsync();
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] Scheduled yt-dlp update result: {updateResult}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] Error during scheduled yt-dlp update: {ex.Message}");
+                }
+            }, null, TimeSpan.FromHours(24), TimeSpan.FromHours(24)); // First update after 24 hours, then every 24 hours
         }
 
         private List<string> ExtractUrls(string text)
