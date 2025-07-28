@@ -282,7 +282,7 @@
                         <TextBlock Text="WhatUPload" FontSize="24" FontWeight="Bold" Foreground="White"/>
                         <TextBlock Text=" - WhatsApp Media Manager" FontSize="16" Foreground="#ADB5BD" Margin="10,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="by: Itay Tsafriri © 2025" FontSize="10" Foreground="#ADB5BD" Margin="0,2,0,0"/>
+                    <TextBlock Text="by: Itay Tsafriri © 2025" FontSize="10" Foreground="#ADB5BD" Margin="0,2,0,0" FontWeight="Bold"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -407,7 +407,7 @@
                     <!-- App Icon -->
                     <Image Source="pack://application:,,,/images/icon.ico" 
                            Width="80" Height="76" 
-                           HorizontalAlignment="Center" 
+                           HorizontalAlignment="Right" 
                            Margin="0,0,0,15"/>
 
                     <!-- Media Processing Toggle -->
