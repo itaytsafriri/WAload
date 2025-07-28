@@ -18,6 +18,7 @@ namespace WAload.Models
         private bool _isImage;
         private bool _isDocument;
         private string _extension = string.Empty;
+        private TimeSpan _duration = TimeSpan.Zero;
 
         public string FileName
         {
@@ -192,6 +193,34 @@ namespace WAload.Models
                     _extension = value;
                     OnPropertyChanged(nameof(Extension));
                 }
+            }
+        }
+
+        public TimeSpan Duration
+        {
+            get => _duration;
+            set
+            {
+                if (_duration != value)
+                {
+                    _duration = value;
+                    OnPropertyChanged(nameof(Duration));
+                    OnPropertyChanged(nameof(DurationFormatted));
+                }
+            }
+        }
+
+        public string DurationFormatted
+        {
+            get
+            {
+                if (_duration == TimeSpan.Zero || !IsVideo)
+                    return "";
+                
+                if (_duration.TotalHours >= 1)
+                    return _duration.ToString(@"hh\:mm\:ss");
+                else
+                    return _duration.ToString(@"mm\:ss");
             }
         }
 

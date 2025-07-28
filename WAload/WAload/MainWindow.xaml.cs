@@ -1067,8 +1067,18 @@ namespace WAload
                                         _mediaItems.Add(mediaItem);
                                         OnPropertyChanged(nameof(MediaItems));
                                         
-                                        // Generate thumbnail asynchronously
-                                        _ = Task.Run(async () => await GenerateThumbnailAsync(mediaItem));
+                                        // Generate thumbnail and extract duration asynchronously
+                                        _ = Task.Run(async () => 
+                                        {
+                                            await GenerateThumbnailAsync(mediaItem);
+                                            
+                                            // Extract duration for video files
+                                            if (mediaItem.IsVideo)
+                                            {
+                                                var duration = await _videoProcessingService.GetVideoDurationAsync(mediaItem.FilePath);
+                                                Dispatcher.Invoke(() => mediaItem.Duration = duration);
+                                            }
+                                        });
                                         
                                         // Process the video if media processing is enabled
                                         if (_appSettings.IsMediaProcessingEnabled)
@@ -1277,6 +1287,13 @@ namespace WAload
                     SenderName = mediaMessage.SenderName,
                     Extension = Path.GetExtension(filePath)
                 };
+                
+                // Extract duration for video files
+                if (mediaItem.IsVideo)
+                {
+                    var duration = await _videoProcessingService.GetVideoDurationAsync(mediaItem.FilePath);
+                    mediaItem.Duration = duration;
+                }
                 
                 System.Diagnostics.Debug.WriteLine($"Successfully created media item: {mediaItem.FileName} at {mediaItem.FilePath}");
                 return mediaItem;
@@ -1994,16 +2011,23 @@ namespace WAload
                         CreateMediaJsonFile(mediaItem);
                     }
                     
-                    // Generate thumbnail for existing files
+                    // Generate thumbnail and extract duration for existing files
                     _ = Task.Run(async () =>
                     {
                         try
                         {
                             await GenerateThumbnailAsync(mediaItem);
+                            
+                            // Extract duration for video files
+                            if (mediaItem.IsVideo)
+                            {
+                                var duration = await _videoProcessingService.GetVideoDurationAsync(mediaItem.FilePath);
+                                Dispatcher.Invoke(() => mediaItem.Duration = duration);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Error generating thumbnail for {mediaItem.FileName}: {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Error processing {mediaItem.FileName}: {ex.Message}");
                         }
                     });
                 }
@@ -2074,6 +2098,7 @@ namespace WAload
                     IsVideo = mediaItem.IsVideo,
                     IsImage = mediaItem.IsImage,
                     IsDocument = mediaItem.IsDocument,
+                    Duration = mediaItem.Duration.ToString(),
                     CreatedAt = DateTime.Now
                 };
                 
@@ -2122,6 +2147,15 @@ namespace WAload
                         if (mediaInfo.MediaType != null && !string.IsNullOrEmpty(mediaInfo.MediaType.ToString()))
                         {
                             mediaItem.MediaType = mediaInfo.MediaType.ToString();
+                        }
+                        
+                        // Load duration if available
+                        if (mediaInfo.Duration != null && mediaItem.IsVideo)
+                        {
+                            if (TimeSpan.TryParse(mediaInfo.Duration.ToString(), out TimeSpan duration))
+                            {
+                                mediaItem.Duration = duration;
+                            }
                         }
                         
                         System.Diagnostics.Debug.WriteLine($"Loaded metadata from JSON for {mediaItem.FileName}: Sender={mediaItem.SenderName}, Group={mediaItem.GroupId}");

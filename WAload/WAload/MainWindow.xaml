@@ -470,6 +470,7 @@
                         </GridViewColumn>
                         <GridViewColumn Header="File Name" Width="200" DisplayMemberBinding="{Binding FileName}"/>
                         <GridViewColumn Header="Type" Width="100" DisplayMemberBinding="{Binding MediaType}"/>
+                        <GridViewColumn Header="Duration" Width="100" DisplayMemberBinding="{Binding DurationFormatted}"/>
                         <GridViewColumn Header="Size" Width="100" DisplayMemberBinding="{Binding FileSizeFormatted}"/>
                         <GridViewColumn Header="Date" Width="150" DisplayMemberBinding="{Binding TimestampFormatted}"/>
                         <GridViewColumn Header="Sender" Width="300" DisplayMemberBinding="{Binding SenderName}"/>
@@ -729,7 +730,7 @@
                                    FontSize="18" FontWeight="Bold" 
                                    HorizontalAlignment="Left" Margin="0,0,0,8"/>
                         <TextBlock x:Name="InitializationMessage" 
-                                   Text="Updating yt-dlp to latest version..." 
+                                   Text="Initializing video engine..." 
                                    HorizontalAlignment="Left" Margin="0,0,0,15" 
                                    TextWrapping="Wrap" Foreground="#6C757D"/>
                         
