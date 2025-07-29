@@ -14343,6 +14343,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_BA5820F8541F4083ADBC67E15E50CE25"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_BA68B16DA27355C31463333E669FF38E"
         "OwnerKey" = "8:_633C9571520D4C3DAE42C63F4DC53302"
         "MsmSig" = "8:_UNDEFINED"
@@ -19274,6 +19280,14 @@
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
             "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:.NETFramework,Version=v4.7.2"
+                    {
+                    "Name" = "8:Microsoft .NET Framework 4.7.2 (x86 and x64)"
+                    "ProductCode" = "8:.NETFramework,Version=v4.7.2"
+                    }
+                }
             }
         }
     }
@@ -28983,6 +28997,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BA5820F8541F4083ADBC67E15E50CE25"
+            {
+            "SourcePath" = "8:..\\..\\WAload\\images\\logo.jpg"
+            "TargetName" = "8:logo.jpg"
+            "Tag" = "8:"
+            "Folder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_BA68B16DA27355C31463333E669FF38E"
             {
             "AssemblyRegister" = "3:1"
@@ -32745,7 +32779,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:WhatsUPload"
         "ProductCode" = "8:{CABECBA7-98EB-4C19-A530-09E6747656DA}"
-        "PackageCode" = "8:{8BAB556E-7854-42AB-B34D-D74EDF97F577}"
+        "PackageCode" = "8:{FEBDF506-303D-44EB-9A71-889B03B2D13A}"
         "UpgradeCode" = "8:{54799229-91F9-44CE-BDC1-7F6282FAD9AA}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
@@ -32865,21 +32899,7 @@
         }
         "Shortcut"
         {
-            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_ACE702811F7649988762CEAAC843DDFD"
-            {
-            "Name" = "8:WhatsUPload"
-            "Arguments" = "8:"
-            "Description" = "8:"
-            "ShowCmd" = "3:1"
-            "IconIndex" = "3:0"
-            "Transitive" = "11:FALSE"
-            "Target" = "8:_467505AE971649E380804523C88F3DCB"
-            "Folder" = "8:_629F8A346990440EB98D15E60A1146FB"
-            "WorkingFolder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
-            "Icon" = "8:_5B70EDD8263141C2948B0754AD01054D"
-            "Feature" = "8:"
-            }
-            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_E54C1DCD7680445EA27AC31DC3D117A1"
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_A482B98F21264059B79E5BB410A8CABF"
             {
             "Name" = "8:WhatsUPload"
             "Arguments" = "8:"
@@ -32889,6 +32909,20 @@
             "Transitive" = "11:FALSE"
             "Target" = "8:_467505AE971649E380804523C88F3DCB"
             "Folder" = "8:_180014F18E34488B8660FAA407E1D652"
+            "WorkingFolder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
+            "Icon" = "8:_5B70EDD8263141C2948B0754AD01054D"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_EEC0AB8DB64D4913A93C2AFBCC8AC08F"
+            {
+            "Name" = "8:WhatsUPload"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_467505AE971649E380804523C88F3DCB"
+            "Folder" = "8:_629F8A346990440EB98D15E60A1146FB"
             "WorkingFolder" = "8:_AC870F02D0C24C9EB483310AE801B9E8"
             "Icon" = "8:_5B70EDD8263141C2948B0754AD01054D"
             "Feature" = "8:"
@@ -32920,7 +32954,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "CopyrightWarning"
@@ -32968,7 +33002,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                         }
@@ -32990,7 +33024,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "InstallAllUsersVisible"
@@ -33025,7 +33059,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "EulaText"
@@ -33162,7 +33196,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "ShowProgress"
@@ -33313,7 +33347,7 @@
                             "Type" = "3:8"
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
-                            "Setting" = "3:1"
+                            "Setting" = "3:0"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "UpdateText"

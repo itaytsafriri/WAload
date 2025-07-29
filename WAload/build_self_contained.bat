@@ -31,6 +31,9 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+REM Open the output folder in Windows Explorer
+start "" "WAload\bin\Release\net9.0-windows\win-x64\publish"
+
 echo [4/4] Build completed successfully!
 echo.
 

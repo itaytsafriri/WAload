@@ -60,6 +60,8 @@ namespace WAload
         private object? _pendingBrowseSender;
         private RoutedEventArgs? _pendingBrowseEventArgs;
         private System.Threading.Timer? _socialMediaDownloadErrorTimer;
+        private GridViewColumnHeader? _lastHeaderClicked = null;
+        private ListSortDirection _lastDirection = ListSortDirection.Ascending;
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -1441,6 +1443,13 @@ namespace WAload
                 if (!isProcessable)
                 {
                     System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping non-processable file: {Path.GetFileName(originalFilePath)}");
+                    return;
+                }
+
+                // Do NOT process audio files (e.g., .mp3, .wav, .ogg, .m4a, .aac, .flac)
+                if (extension == ".mp3" || extension == ".wav" || extension == ".ogg" || extension == ".m4a" || extension == ".aac" || extension == ".flac")
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MediaProcessing] Skipping audio file: {Path.GetFileName(originalFilePath)}");
                     return;
                 }
 
@@ -2861,6 +2870,32 @@ namespace WAload
             };
             
             SocialMediaDownloadErrorProgress.BeginAnimation(System.Windows.Controls.ProgressBar.ValueProperty, animation);
+        }
+
+        private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
+        {
+            var headerClicked = e.OriginalSource as GridViewColumnHeader;
+            if (headerClicked == null || headerClicked.Tag == null)
+                return;
+
+            string sortBy = headerClicked.Tag.ToString()!;
+            ListSortDirection direction = ListSortDirection.Ascending;
+
+            if (_lastHeaderClicked == headerClicked && _lastDirection == ListSortDirection.Ascending)
+            {
+                direction = ListSortDirection.Descending;
+            }
+
+            var collectionView = CollectionViewSource.GetDefaultView(MediaListView.ItemsSource) as ListCollectionView;
+            if (collectionView != null)
+            {
+                collectionView.SortDescriptions.Clear();
+                collectionView.SortDescriptions.Add(new SortDescription(sortBy, direction));
+                collectionView.Refresh();
+            }
+
+            _lastHeaderClicked = headerClicked;
+            _lastDirection = direction;
         }
     }
 }

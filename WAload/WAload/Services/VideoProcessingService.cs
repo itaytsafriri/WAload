@@ -159,7 +159,7 @@ namespace WAload.Services
                     if (saveAsMxf)
                     {
                         // MXF command for Avid compatibility with MPEG-2 video
-                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080,format=yuv420p[bg_stream];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,format=yuv420p[fg_stream];[bg_stream][fg_stream]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p[processed_visuals];[processed_visuals]format=yuv422p,fieldorder=tff[final_video_out]\" -map \"[final_video_out]\" -map 0:a -c:v mpeg2video -r 25 -pix_fmt yuv422p -b:v 50M -minrate 50M -maxrate 50M -bufsize 7500000 -flags +ildct+ilme -g 12 -bf 2 -color_range tv -c:a pcm_s24le \"{tempOutputPath}\"";
+                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080,format=yuv422p[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,format=yuv422p[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv422p,fps=25,fieldorder=tff[vidout];[0:a]channelsplit=channel_layout=stereo[left][right]\" -map \"[vidout]\" -map \"[left]\" -map \"[right]\" -c:v mpeg2video -r 25 -pix_fmt yuv422p -b:v 50M -minrate 50M -maxrate 50M -bufsize 17825792 -flags +ildct+ilme -g 12 -bf 2 -color_range tv -ar 48000 -c:a pcm_s24le -metadata:s:a:0 \"track_name=Track 2\" -metadata:s:a:1 \"track_name=Track 3\" \"{tempOutputPath}\"";
                     }
                     else
                     {

@@ -449,7 +449,10 @@
                       MouseDoubleClick="MediaListView_MouseDoubleClick">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Thumbnail" Width="100" x:Name="ThumbnailColumn">
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="Thumbnail" Click="GridViewColumnHeader_Click" Tag="Thumbnail"/>
+                            </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -468,11 +471,51 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="File Name" Width="200" DisplayMemberBinding="{Binding FileName}"/>
-                        <GridViewColumn Header="Type" Width="100" DisplayMemberBinding="{Binding MediaType}"/>
-                        <GridViewColumn Header="Duration" Width="100" DisplayMemberBinding="{Binding DurationFormatted}"/>
-                        <GridViewColumn Header="Size" Width="100" DisplayMemberBinding="{Binding FileSizeFormatted}"/>
-                        <GridViewColumn Header="Date" Width="150" DisplayMemberBinding="{Binding TimestampFormatted}"/>
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="File Name" Click="GridViewColumnHeader_Click" Tag="FileName"/>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.DisplayMemberBinding>
+                                <Binding Path="FileName"/>
+                            </GridViewColumn.DisplayMemberBinding>
+                            <GridViewColumn.Width>200</GridViewColumn.Width>
+                        </GridViewColumn>
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="Type" Click="GridViewColumnHeader_Click" Tag="MediaType"/>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.DisplayMemberBinding>
+                                <Binding Path="MediaType"/>
+                            </GridViewColumn.DisplayMemberBinding>
+                            <GridViewColumn.Width>100</GridViewColumn.Width>
+                        </GridViewColumn>
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="Duration" Click="GridViewColumnHeader_Click" Tag="DurationFormatted"/>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.DisplayMemberBinding>
+                                <Binding Path="DurationFormatted"/>
+                            </GridViewColumn.DisplayMemberBinding>
+                            <GridViewColumn.Width>100</GridViewColumn.Width>
+                        </GridViewColumn>
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="Size" Click="GridViewColumnHeader_Click" Tag="FileSizeFormatted"/>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.DisplayMemberBinding>
+                                <Binding Path="FileSizeFormatted"/>
+                            </GridViewColumn.DisplayMemberBinding>
+                            <GridViewColumn.Width>100</GridViewColumn.Width>
+                        </GridViewColumn>
+                        <GridViewColumn>
+                            <GridViewColumn.Header>
+                                <GridViewColumnHeader Content="Date" Click="GridViewColumnHeader_Click" Tag="TimestampFormatted"/>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.DisplayMemberBinding>
+                                <Binding Path="TimestampFormatted"/>
+                            </GridViewColumn.DisplayMemberBinding>
+                            <GridViewColumn.Width>150</GridViewColumn.Width>
+                        </GridViewColumn>
                         <GridViewColumn Header="Sender" Width="300" DisplayMemberBinding="{Binding SenderName}"/>
                     </GridView>
                 </ListView.View>
