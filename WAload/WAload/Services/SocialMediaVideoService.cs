@@ -147,7 +147,7 @@ namespace WAload.Services
                 var outputTemplate = Path.Combine(_downloadFolder, $"{safeSenderName}_{timestampStr}.%(ext)s");
 
                 // yt-dlp command to download video
-                var arguments = $"-o \"{outputTemplate}\" --no-playlist \"{url}\"";
+                var arguments = $"-o \"{outputTemplate}\" --no-playlist --no-check-certificate \"{url}\"";
 
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Downloading video from: {url}");
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] yt-dlp command: {arguments}");
