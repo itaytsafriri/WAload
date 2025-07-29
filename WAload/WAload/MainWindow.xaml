@@ -781,5 +781,91 @@
                 </Grid>
             </Border>
         </Border>
+
+        <!-- System Components Error Modal -->
+        <Border x:Name="SystemComponentsErrorModal" Grid.RowSpan="4" 
+                Background="#80000000" Visibility="Collapsed">
+            <Border Background="White" CornerRadius="8" Padding="30" 
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="500">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Error Icon -->
+                    <Border Grid.Column="0" Width="48" Height="48" 
+                            Background="#FF9800" CornerRadius="24" 
+                            Margin="0,0,20,0" VerticalAlignment="Top">
+                        <TextBlock Text="⚠" FontSize="24" FontWeight="Bold"
+                                   Foreground="White" HorizontalAlignment="Center" 
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Content -->
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="SystemComponentsErrorTitle" Text="System Components Missing" 
+                                   FontSize="18" FontWeight="Bold" 
+                                   HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="SystemComponentsErrorMessage" 
+                                   Text="One or more system components is missing or corrupted." 
+                                   HorizontalAlignment="Left" Margin="0,0,0,20" 
+                                   TextWrapping="Wrap" Foreground="#6C757D"/>
+                        
+                        <!-- OK Button -->
+                        <Button Content="OK" Width="80" Height="32" 
+                                HorizontalAlignment="Right" 
+                                Background="#2196F3" Foreground="White"
+                                BorderThickness="0"
+                                Click="SystemComponentsErrorOK_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- Social Media Download Error Modal -->
+        <Border x:Name="SocialMediaDownloadErrorModal" Grid.RowSpan="4" 
+                Background="#80000000" Visibility="Collapsed">
+            <Border Background="White" CornerRadius="8" Padding="30" 
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="450">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Error Icon -->
+                    <Border Grid.Column="0" Width="48" Height="48" 
+                            Background="#F44336" CornerRadius="24" 
+                            Margin="0,0,20,0" VerticalAlignment="Top">
+                        <TextBlock Text="❌" FontSize="24" FontWeight="Bold"
+                                   Foreground="White" HorizontalAlignment="Center" 
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Content -->
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="SocialMediaDownloadErrorTitle" Text="Download Failed" 
+                                   FontSize="18" FontWeight="Bold" 
+                                   HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="SocialMediaDownloadErrorMessage" 
+                                   Text="Failed to download social media video." 
+                                   HorizontalAlignment="Left" Margin="0,0,0,20" 
+                                   TextWrapping="Wrap" Foreground="#6C757D"/>
+                        
+                        <!-- Progress Bar for Auto-Hide -->
+                        <ProgressBar x:Name="SocialMediaDownloadErrorProgress" Height="4" 
+                                     Margin="0,0,0,15" Background="#E0E0E0" Foreground="#F44336"/>
+                        
+                        <!-- OK Button -->
+                        <Button Content="OK" Width="80" Height="32" 
+                                HorizontalAlignment="Right" 
+                                Background="#2196F3" Foreground="White"
+                                BorderThickness="0"
+                                Click="SocialMediaDownloadErrorOK_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
     </Grid>
 </Window>

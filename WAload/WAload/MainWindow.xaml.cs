@@ -59,6 +59,7 @@ namespace WAload
         private readonly HashSet<string> _socialMediaDownloadedFiles = new HashSet<string>();
         private object? _pendingBrowseSender;
         private RoutedEventArgs? _pendingBrowseEventArgs;
+        private System.Threading.Timer? _socialMediaDownloadErrorTimer;
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -1190,8 +1191,7 @@ namespace WAload
                                                     Dispatcher.Invoke(() => 
                                                     {
                                                         StatusMessage = $"Failed to process social media video: {ex.Message}";
-                                                        System.Windows.MessageBox.Show($"Failed to process social media video: {ex.Message}", "Processing Error", 
-                                                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                                                        ShowSocialMediaDownloadErrorModal(videoUrl, $"Processing error: {ex.Message}");
                                                     });
                                                 }
                                             });
@@ -1201,16 +1201,14 @@ namespace WAload
                                     {
                                         HideSocialMediaDownloadModal();
                                         StatusMessage = $"Failed to download social media video from {videoUrl}";
-                                        System.Windows.MessageBox.Show($"Failed to download social media video from {videoUrl}", "Download Error", 
-                                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                                        ShowSocialMediaDownloadErrorModal(videoUrl, "The video could not be downloaded. Please check the URL and try again.");
                                     }
                                 }
                                 catch (Exception ex)
                                 {
                                     HideSocialMediaDownloadModal();
                                     StatusMessage = $"Error downloading social media video: {ex.Message}";
-                                    System.Windows.MessageBox.Show($"Error downloading social media video: {ex.Message}", "Download Error", 
-                                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                                    ShowSocialMediaDownloadErrorModal(videoUrl, ex.Message);
                                 }
                             }
                         }
@@ -1248,8 +1246,29 @@ namespace WAload
                 Dispatcher.Invoke(() =>
                 {
                     InitializationModal.Visibility = Visibility.Visible;
+                    InitializationTitle.Text = "Checking System Components";
+                    InitializationMessage.Text = "Verifying required components...";
                     // Disable connect button during initialization
                     ConnectButton.IsEnabled = false;
+                });
+
+                // Check system components first
+                if (!CheckSystemComponents())
+                {
+                    // System components check failed, modal is already shown
+                    Dispatcher.Invoke(() =>
+                    {
+                        InitializationModal.Visibility = Visibility.Collapsed;
+                        ConnectButton.IsEnabled = true;
+                    });
+                    return;
+                }
+
+                // Update initialization message
+                Dispatcher.Invoke(() =>
+                {
+                    InitializationTitle.Text = "Updating Components";
+                    InitializationMessage.Text = "Updating video download components...";
                 });
 
                 // Update yt-dlp
@@ -2073,6 +2092,24 @@ namespace WAload
                         continue;
                     }
                     
+                    // Skip system and configuration files
+                    var extension = fileInfo.Extension.ToLower();
+                    var fileName = fileInfo.Name.ToLower();
+                    if (extension == ".ini" || extension == ".log" || extension == ".tmp" || 
+                        extension == ".bak" || extension == ".old" || extension == ".cache" ||
+                        fileName.Contains("desktop.ini") || fileName.Contains("thumbs.db"))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Skipping system/config file: {fileInfo.Name}");
+                        continue;
+                    }
+                    
+                    // Only show media files
+                    if (!IsMediaFile(extension))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Skipping non-media file: {fileInfo.Name} (extension: {extension})");
+                        continue;
+                    }
+                    
                     // Note: Processed files are now visible in UI since we use a separate temp directory
                     // The infinite loop prevention is handled by using a separate temp directory
                     
@@ -2672,6 +2709,158 @@ namespace WAload
                 return "unknown";
         }
 
+        /// <summary>
+        /// Checks if all required system components are available
+        /// </summary>
+        /// <returns>True if all components are available, false otherwise</returns>
+        private bool CheckSystemComponents()
+        {
+            var missingComponents = new List<string>();
+            
+            // Check FFmpeg
+            if (!_videoProcessingService.IsFFmpegAvailable())
+            {
+                missingComponents.Add("FFmpeg");
+            }
+            
+            // Check Node.js
+            var nodePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "node.exe");
+            var nodeScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "whatsapp.js");
+            if (!File.Exists(nodePath) || !File.Exists(nodeScriptPath))
+            {
+                missingComponents.Add("Node.js");
+            }
+            
+            // Check yt-dlp
+            if (!_socialMediaVideoService.IsYtDlpAvailable())
+            {
+                missingComponents.Add("yt-dlp");
+            }
+            
+            if (missingComponents.Count > 0)
+            {
+                ShowSystemComponentsErrorModal(missingComponents);
+                return false;
+            }
+            
+            return true;
+        }
 
+        /// <summary>
+        /// Shows a modal dialog when system components are missing
+        /// </summary>
+        /// <param name="missingComponents">List of missing components</param>
+        private void ShowSystemComponentsErrorModal(List<string> missingComponents)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SystemComponentsErrorTitle.Text = "System Components Missing";
+                var componentsList = string.Join(", ", missingComponents);
+                SystemComponentsErrorMessage.Text = $"One or more system components is missing or corrupted:\n\n{componentsList}\n\nPlease remove and reinstall the software.";
+                SystemComponentsErrorModal.Visibility = Visibility.Visible;
+            });
+        }
+
+        /// <summary>
+        /// Hides the system components error modal
+        /// </summary>
+        private void HideSystemComponentsErrorModal()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SystemComponentsErrorModal.Visibility = Visibility.Collapsed;
+            });
+        }
+
+        /// <summary>
+        /// Handles the OK button click in the system components error modal
+        /// </summary>
+        private void SystemComponentsErrorOK_Click(object sender, RoutedEventArgs e)
+        {
+            HideSystemComponentsErrorModal();
+        }
+
+        /// <summary>
+        /// Shows a modal dialog when social media video download fails
+        /// </summary>
+        /// <param name="url">The URL that failed to download</param>
+        /// <param name="errorMessage">The error message</param>
+        private void ShowSocialMediaDownloadErrorModal(string url, string errorMessage)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SocialMediaDownloadErrorTitle.Text = "Download Failed";
+                SocialMediaDownloadErrorMessage.Text = $"Failed to download social media video from:\n\n{url}\n\n{errorMessage}";
+                SocialMediaDownloadErrorModal.Visibility = Visibility.Visible;
+                
+                // Start auto-hide timer (15 seconds)
+                StartSocialMediaDownloadErrorAutoHide();
+            });
+        }
+
+        /// <summary>
+        /// Hides the social media download error modal
+        /// </summary>
+        private void HideSocialMediaDownloadErrorModal()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SocialMediaDownloadErrorModal.Visibility = Visibility.Collapsed;
+                StopSocialMediaDownloadErrorAutoHide();
+            });
+        }
+
+        /// <summary>
+        /// Handles the OK button click in the social media download error modal
+        /// </summary>
+        private void SocialMediaDownloadErrorOK_Click(object sender, RoutedEventArgs e)
+        {
+            HideSocialMediaDownloadErrorModal();
+        }
+
+        /// <summary>
+        /// Starts the auto-hide timer for social media download error modal
+        /// </summary>
+        private void StartSocialMediaDownloadErrorAutoHide()
+        {
+            StopSocialMediaDownloadErrorAutoHide();
+            
+            var timer = new System.Threading.Timer(_ =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    HideSocialMediaDownloadErrorModal();
+                });
+            }, null, 15000, Timeout.Infinite);
+            
+            _socialMediaDownloadErrorTimer = timer;
+            
+            // Start progress bar animation
+            StartSocialMediaDownloadErrorProgressAnimation();
+        }
+
+        /// <summary>
+        /// Stops the auto-hide timer for social media download error modal
+        /// </summary>
+        private void StopSocialMediaDownloadErrorAutoHide()
+        {
+            _socialMediaDownloadErrorTimer?.Dispose();
+            _socialMediaDownloadErrorTimer = null;
+        }
+
+        /// <summary>
+        /// Starts the progress bar animation for the social media download error modal
+        /// </summary>
+        private void StartSocialMediaDownloadErrorProgressAnimation()
+        {
+            var animation = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0,
+                To = 100,
+                Duration = TimeSpan.FromSeconds(15)
+            };
+            
+            SocialMediaDownloadErrorProgress.BeginAnimation(System.Windows.Controls.ProgressBar.ValueProperty, animation);
+        }
     }
 }
