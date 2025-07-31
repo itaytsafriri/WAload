@@ -8,6 +8,24 @@ using System.Linq; // Added for Aggregate
 
 namespace WAload.Services
 {
+    public class TimeSegment
+    {
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+        
+        public TimeSegment(TimeSpan start, TimeSpan end)
+        {
+            StartTime = start;
+            EndTime = end;
+        }
+        
+        public override string ToString()
+        {
+            // Format for yt-dlp --download-sections: "*00:01:30-00:02:00"
+            return $"*{StartTime:hh\\:mm\\:ss}-{EndTime:hh\\:mm\\:ss}";
+        }
+    }
+
     public class SocialMediaVideoService
     {
         private readonly string _ytdlpPath;
@@ -52,6 +70,114 @@ namespace WAload.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] yt-dlp found at: {_ytdlpPath}");
             }
+        }
+
+        /// <summary>
+        /// Parses time segments from a message using various forgiving syntax formats
+        /// </summary>
+        /// <param name="message">The message containing time segment information</param>
+        /// <returns>List of TimeSegment objects, or empty list if no valid segments found</returns>
+        public List<TimeSegment> ParseTimeSegments(string message)
+        {
+            var segments = new List<TimeSegment>();
+            
+            if (string.IsNullOrEmpty(message))
+                return segments;
+
+            // Multiple regex patterns to catch various syntax formats
+            var patterns = new[]
+            {
+                // Standard format: (IN:00:01:00 OUT:00:02:00) - case insensitive
+                @"\([Ii][Nn]:\s*(\d{1,2}):(\d{1,2}):(\d{1,2})\s+[Oo][Uu][Tt]:\s*(\d{1,2}):(\d{1,2}):(\d{1,2})\)",
+                
+                // Alternative format: [IN:00:01:00 OUT:00:02:00] - case insensitive
+                @"\[[Ii][Nn]:\s*(\d{1,2}):(\d{1,2}):(\d{1,2})\s+[Oo][Uu][Tt]:\s*(\d{1,2}):(\d{1,2}):(\d{1,2})\]",
+                
+                // Short format with IN/OUT: (in:01:10 out:02:00) - case insensitive, minutes:seconds
+                @"\([Ii][Nn]:\s*(\d{1,2}):(\d{1,2})\s+[Oo][Uu][Tt]:\s*(\d{1,2}):(\d{1,2})\)",
+                
+                // Simple format: (00:01:00-00:02:00)
+                @"\((\d{1,2}):(\d{1,2}):(\d{1,2})\s*-\s*(\d{1,2}):(\d{1,2}):(\d{1,2})\)",
+                
+                // Without brackets: 00:01:00-00:02:00
+                @"(\d{1,2}):(\d{1,2}):(\d{1,2})\s*-\s*(\d{1,2}):(\d{1,2}):(\d{1,2})",
+                
+                // With "to" instead of "-": 00:01:00 to 00:02:00
+                @"(\d{1,2}):(\d{1,2}):(\d{1,2})\s+to\s+(\d{1,2}):(\d{1,2}):(\d{1,2})",
+                
+                // With "until" instead of "-": 00:01:00 until 00:02:00
+                @"(\d{1,2}):(\d{1,2}):(\d{1,2})\s+until\s+(\d{1,2}):(\d{1,2}):(\d{1,2})",
+                
+                // Short format: 1:30-2:45 (assumes minutes:seconds)
+                @"(\d{1,2}):(\d{1,2})\s*-\s*(\d{1,2}):(\d{1,2})",
+                
+                // Very short format: 1:30 to 2:45 (assumes minutes:seconds)
+                @"(\d{1,2}):(\d{1,2})\s+to\s+(\d{1,2}):(\d{1,2})"
+            };
+
+            foreach (var pattern in patterns)
+            {
+                var matches = Regex.Matches(message, pattern, RegexOptions.IgnoreCase);
+                foreach (Match match in matches)
+                {
+                    try
+                    {
+                        TimeSpan startTime, endTime;
+                        
+                        if (match.Groups.Count == 7) // Full format with hours:minutes:seconds
+                        {
+                            var startHours = int.Parse(match.Groups[1].Value);
+                            var startMinutes = int.Parse(match.Groups[2].Value);
+                            var startSeconds = int.Parse(match.Groups[3].Value);
+                            var endHours = int.Parse(match.Groups[4].Value);
+                            var endMinutes = int.Parse(match.Groups[5].Value);
+                            var endSeconds = int.Parse(match.Groups[6].Value);
+                            
+                            startTime = new TimeSpan(startHours, startMinutes, startSeconds);
+                            endTime = new TimeSpan(endHours, endMinutes, endSeconds);
+                        }
+                        else if (match.Groups.Count == 5) // Short format with minutes:seconds (including IN/OUT format)
+                        {
+                            var startMinutes = int.Parse(match.Groups[1].Value);
+                            var startSeconds = int.Parse(match.Groups[2].Value);
+                            var endMinutes = int.Parse(match.Groups[3].Value);
+                            var endSeconds = int.Parse(match.Groups[4].Value);
+                            
+                            startTime = new TimeSpan(0, startMinutes, startSeconds);
+                            endTime = new TimeSpan(0, endMinutes, endSeconds);
+                        }
+                        else
+                        {
+                            continue; // Skip invalid matches
+                        }
+                        
+                        // Validate times
+                        if (startTime >= endTime)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Invalid time segment: start ({startTime}) >= end ({endTime})");
+                            continue;
+                        }
+                        
+                        // Check for reasonable duration (max 10 hours)
+                        var duration = endTime - startTime;
+                        if (duration.TotalHours > 10)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Time segment too long: {duration.TotalHours:F2} hours");
+                            continue;
+                        }
+                        
+                        segments.Add(new TimeSegment(startTime, endTime));
+                        System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Parsed time segment: {startTime:hh\\:mm\\:ss} to {endTime:hh\\:mm\\:ss}");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Error parsing time segment: {ex.Message}");
+                        continue;
+                    }
+                }
+            }
+            
+            return segments;
         }
 
         /// <summary>
@@ -125,13 +251,14 @@ namespace WAload.Services
         }
 
         /// <summary>
-        /// Downloads a social media video using yt-dlp
+        /// Downloads a social media video using yt-dlp with optional time segment extraction
         /// </summary>
         /// <param name="url">The video URL to download</param>
         /// <param name="senderName">Name of the sender for file naming</param>
         /// <param name="timestamp">Timestamp for file naming</param>
+        /// <param name="timeSegments">Optional time segments to extract</param>
         /// <returns>The path to the downloaded video file, or null if failed</returns>
-        public async Task<string?> DownloadSocialMediaVideoAsync(string url, string senderName, DateTime timestamp)
+        public async Task<string?> DownloadSocialMediaVideoAsync(string url, string senderName, DateTime timestamp, List<TimeSegment>? timeSegments = null)
         {
             try
             {
@@ -146,8 +273,18 @@ namespace WAload.Services
                 var timestampStr = timestamp.ToString("yyyyMMdd_HHmmss");
                 var outputTemplate = Path.Combine(_downloadFolder, $"{safeSenderName}_{timestampStr}.%(ext)s");
 
-                // yt-dlp command to download video
-                var arguments = $"-o \"{outputTemplate}\" --no-playlist --no-check-certificate \"{url}\"";
+                // Build yt-dlp arguments
+                var arguments = $"-o \"{outputTemplate}\" --no-playlist --no-check-certificate";
+                
+                // Add time segment extraction if specified
+                if (timeSegments != null && timeSegments.Count > 0)
+                {
+                    var segmentArgs = string.Join(" ", timeSegments.Select(s => s.ToString()));
+                    arguments += $" --download-sections \"{segmentArgs}\"";
+                    System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Adding time segments: {segmentArgs}");
+                }
+                
+                arguments += $" \"{url}\"";
 
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Downloading video from: {url}");
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] yt-dlp command: {arguments}");
@@ -203,6 +340,104 @@ namespace WAload.Services
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Exception downloading video: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Downloads a social media video with automatic time segment parsing from the message
+        /// </summary>
+        /// <param name="url">The video URL to download</param>
+        /// <param name="senderName">Name of the sender for file naming</param>
+        /// <param name="timestamp">Timestamp for file naming</param>
+        /// <param name="message">The original message containing time segment information</param>
+        /// <returns>The path to the downloaded video file, or null if failed</returns>
+        public async Task<string?> DownloadSocialMediaVideoWithSegmentsAsync(string url, string senderName, DateTime timestamp, string message)
+        {
+            try
+            {
+                // Parse time segments from the message
+                var timeSegments = ParseTimeSegments(message);
+                
+                if (timeSegments.Count > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Found {timeSegments.Count} time segment(s) in message");
+                    foreach (var segment in timeSegments)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Segment: {segment.StartTime:hh\\:mm\\:ss} to {segment.EndTime:hh\\:mm\\:ss}");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] No time segments found in message, downloading full video");
+                }
+                
+                // Download with segments
+                return await DownloadSocialMediaVideoAsync(url, senderName, timestamp, timeSegments);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Exception in DownloadSocialMediaVideoWithSegmentsAsync: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Validates time segment format and provides helpful feedback
+        /// </summary>
+        /// <param name="timeString">The time string to validate</param>
+        /// <returns>Validation result with suggestions</returns>
+        public (bool IsValid, string Message, TimeSegment? Segment) ValidateTimeSegment(string timeString)
+        {
+            if (string.IsNullOrWhiteSpace(timeString))
+            {
+                return (false, "Time segment cannot be empty", null);
+            }
+
+            // Try to parse using our existing method
+            var segments = ParseTimeSegments(timeString);
+            
+            if (segments.Count == 0)
+            {
+                return (false, 
+                    "Invalid time format. Supported formats:\n" +
+                    "• (IN:00:01:00 OUT:00:02:00)\n" +
+                    "• (00:01:00-00:02:00)\n" +
+                    "• 00:01:00-00:02:00\n" +
+                    "• 00:01:00 to 00:02:00\n" +
+                    "• 1:30-2:45 (minutes:seconds)", 
+                    null);
+            }
+            
+            if (segments.Count > 1)
+            {
+                return (false, $"Multiple time segments found ({segments.Count}). Please specify only one segment.", null);
+            }
+            
+            return (true, "Valid time segment", segments[0]);
+        }
+
+        /// <summary>
+        /// Gets a user-friendly description of supported time segment formats
+        /// </summary>
+        /// <returns>Formatted string with examples</returns>
+        public string GetSupportedTimeFormats()
+        {
+            return @"Supported time segment formats:
+
+1. Standard format: (IN:00:01:00 OUT:00:02:00)
+2. Alternative brackets: [IN:00:01:00 OUT:00:02:00]
+3. Simple format: (00:01:00-00:02:00)
+4. No brackets: 00:01:00-00:02:00
+5. Using 'to': 00:01:00 to 00:02:00
+6. Using 'until': 00:01:00 until 00:02:00
+7. Short format: 1:30-2:45 (assumes minutes:seconds)
+8. Very short: 1:30 to 2:45 (assumes minutes:seconds)
+
+Examples:
+• https://youtube.com/watch?v=abc123 (IN:00:01:30 OUT:00:03:45)
+• https://youtube.com/watch?v=abc123 (1:30-3:45)
+• https://youtube.com/watch?v=abc123 00:01:30 to 00:03:45
+
+Note: Requires ffmpeg to be in the same directory as yt-dlp for time segment extraction.";
         }
 
         /// <summary>
