@@ -14,6 +14,17 @@ namespace WAload.Models
         public long Size { get; set; }
         public string SenderName { get; set; } = string.Empty;
 
+        // Enhanced properties for TeleMedia features
+        public string Body { get; set; } = string.Empty;
+        public bool FromMe { get; set; } = false;
+        public bool HasMedia { get; set; } = false;
+        public string MediaType { get; set; } = string.Empty;
+        public string MimeType { get; set; } = string.Empty;
+        
+        // Convenience properties for compatibility
+        public string FileName => Filename;
+        public long FileSize => Size;
+
         public DateTime DateTime => DateTimeOffset.FromUnixTimeSeconds(Timestamp).DateTime;
     }
 } 

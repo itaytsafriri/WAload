@@ -28,6 +28,7 @@ namespace WAload
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly IWhatsAppService _whatsAppService;
+        private MessageQueue? _messageQueue;
         private readonly VideoProcessingService _videoProcessingService;
         private readonly XTweetScreenshotService _xTweetScreenshotService;
         private SocialMediaVideoService _socialMediaVideoService;
@@ -2896,6 +2897,140 @@ namespace WAload
 
             _lastHeaderClicked = headerClicked;
             _lastDirection = direction;
+        }
+
+        /// <summary>
+        /// Initializes the MessageQueue system for enhanced message processing
+        /// </summary>
+        private void InitializeMessageQueue()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainWindow] Initializing MessageQueue system...");
+                
+                // Initialize MessageQueue
+                _messageQueue = new MessageQueue();
+                _messageQueue.MessageProcessed += OnMessageProcessed;
+                _messageQueue.QueueStatusChanged += OnQueueStatusChanged;
+                _messageQueue.ProcessingComplete += OnProcessingComplete;
+                
+                // Configure WhatsAppService to use MessageQueue
+                if (_whatsAppService is WAload.Services.WhatsAppService whatsAppService)
+                {
+                    whatsAppService.SetMessageQueue(_messageQueue);
+                    System.Diagnostics.Debug.WriteLine("[MainWindow] MessageQueue configured with WhatsAppService");
+                }
+                
+                System.Diagnostics.Debug.WriteLine("[MainWindow] MessageQueue initialization complete");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Error initializing MessageQueue: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles processed messages from the MessageQueue
+        /// </summary>
+        private void OnMessageProcessed(object? sender, MediaMessage message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Message processed: {message.Id}");
+                StatusMessage = $"✅ Processed: {message.FileName ?? "Unknown"}";
+                RequestThrottledRefresh();
+            });
+        }
+
+        /// <summary>
+        /// Handles queue status changes from the MessageQueue
+        /// </summary>
+        private void OnQueueStatusChanged(object? sender, QueueStatusEventArgs args)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var status = $"Queue: {args.QueuedCount} | Processed: {args.ProcessedCount}";
+                if (args.FailedCount > 0)
+                {
+                    status += $" | Failed: {args.FailedCount}";
+                }
+                
+                if (args.IsProcessing)
+                {
+                    status += " | Processing...";
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Queue status: {status}");
+            });
+        }
+
+        /// <summary>
+        /// Handles processing completion from the MessageQueue
+        /// </summary>
+        private void OnProcessingComplete(object? sender, EventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                System.Diagnostics.Debug.WriteLine("[MainWindow] All message processing complete");
+                StatusMessage = "✅ All messages processed";
+            });
+        }
+
+        /// <summary>
+        /// Requests a throttled refresh to prevent overwhelming the UI
+        /// </summary>
+        private void RequestThrottledRefresh()
+        {
+            if (_refreshPending) return;
+            
+            _refreshPending = true;
+            _refreshTimer?.Dispose();
+            _refreshTimer = new System.Threading.Timer(_ =>
+            {
+                _refreshPending = false;
+                Dispatcher.Invoke(() =>
+                {
+                    LoadExistingMedia(); // Refresh media list
+                });
+            }, null, 1000, Timeout.Infinite);
+        }
+
+        /// <summary>
+        /// Handles window closing event and ensures proper cleanup
+        /// </summary>
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainWindow] Starting application shutdown...");
+                
+                // Dispose MessageQueue first
+                _messageQueue?.Dispose();
+                
+                // Dispose timers
+                _refreshTimer?.Dispose();
+                _processingTimeoutTimer?.Dispose();
+                _socialMediaDownloadErrorTimer?.Dispose();
+                
+                // Cancel any ongoing processing
+                _processingCancellationTokenSource?.Cancel();
+                _processingCancellationTokenSource?.Dispose();
+                
+                // Dispose file watcher
+                if (_fileWatcher != null)
+                {
+                    _fileWatcher.EnableRaisingEvents = false;
+                    _fileWatcher.Dispose();
+                }
+                
+                System.Diagnostics.Debug.WriteLine("[MainWindow] Application shutdown cleanup completed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Error during shutdown: {ex.Message}");
+            }
+            
+            base.OnClosing(e);
         }
     }
 }

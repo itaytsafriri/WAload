@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         Title="WhatUPload - WhatsApp Media Manager" 
         Height="600" Width="900"
+        WindowState="Maximized"
         MinHeight="500" MinWidth="800"
         Background="#F8F9FA"
         ResizeMode="CanResize"

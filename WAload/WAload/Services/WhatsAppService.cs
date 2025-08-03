@@ -14,6 +14,7 @@ namespace WAload.Services
         private bool _isConnected;
         private bool _isMonitoring;
         private string _nodeScriptPath = string.Empty;
+        private MessageQueue? _messageQueue;
 
         public event EventHandler<string>? QrCodeReceived;
         public event EventHandler<bool>? ConnectionStatusChanged;
@@ -25,6 +26,15 @@ namespace WAload.Services
 
         public bool IsConnected => _isConnected;
         public bool IsMonitoring => _isMonitoring;
+
+        /// <summary>
+        /// Sets the message queue for handling incoming media messages
+        /// </summary>
+        public void SetMessageQueue(MessageQueue messageQueue)
+        {
+            _messageQueue = messageQueue;
+            System.Diagnostics.Debug.WriteLine("[WhatsAppService] Message queue configured");
+        }
 
         public async Task InitializeAsync()
         {
@@ -215,29 +225,24 @@ namespace WAload.Services
                         {
                             System.Diagnostics.Debug.WriteLine($"Raw Media object - Id: '{message.Media.Id}', From: '{message.Media.From}', Author: '{message.Media.Author}', Type: '{message.Media.Type}', Data length: {message.Media.Data?.Length ?? 0}");
                             
-                            var mediaMessage = new MediaMessage
+                            // Enhanced media message processing with metadata extraction
+                            var enhancedMedia = ProcessMediaMessage(message.Media);
+                            
+                            // Use message queue if available, otherwise fall back to direct event
+                            if (_messageQueue != null)
                             {
-                                Id = message.Media.Id ?? string.Empty,
-                                From = message.Media.From ?? string.Empty,
-                                Author = message.Media.Author ?? string.Empty,
-                                Type = message.Media.Type ?? string.Empty,
-                                Timestamp = message.Media.Timestamp ?? 0,
-                                Filename = message.Media.Filename ?? string.Empty,
-                                Data = message.Media.Data ?? string.Empty,
-                                Size = message.Media.Size ?? 0,
-                                SenderName = message.Media.SenderName ?? string.Empty
-                            };
-                            System.Diagnostics.Debug.WriteLine($"Media received: {mediaMessage.Filename} (Type: {mediaMessage.Type}, Size: {mediaMessage.Size}, Data length: {mediaMessage.Data?.Length ?? 0})");
-                            System.Diagnostics.Debug.WriteLine($"Media details - ID: {mediaMessage.Id}, From: {mediaMessage.From}, Author: {mediaMessage.Author}");
-                            if (string.IsNullOrEmpty(mediaMessage.Data))
-                            {
-                                System.Diagnostics.Debug.WriteLine("WARNING: Media data is empty - this might indicate a download issue");
+                                System.Diagnostics.Debug.WriteLine($"[WhatsAppService] Queuing media message: {enhancedMedia.Id}");
+                                bool queued = _messageQueue.EnqueueMessage(enhancedMedia);
+                                if (!queued)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[WhatsAppService] Failed to queue message (likely duplicate): {enhancedMedia.Id}");
+                                }
                             }
                             else
                             {
-                                System.Diagnostics.Debug.WriteLine($"SUCCESS: Media data received with length {mediaMessage.Data.Length}");
+                                System.Diagnostics.Debug.WriteLine($"[WhatsAppService] No message queue configured, using direct event");
+                                MediaMessageReceived?.Invoke(this, enhancedMedia);
                             }
-                            MediaMessageReceived?.Invoke(this, mediaMessage);
                         }
                         else
                         {
@@ -387,6 +392,116 @@ namespace WAload.Services
                 System.Diagnostics.Debug.WriteLine($"Error during logout: {ex.Message}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Processes and enhances a media message with metadata extraction
+        /// </summary>
+        private MediaMessage ProcessMediaMessage(dynamic originalMessage)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhatsAppService] Processing media message: {originalMessage.Id}");
+                
+                // Create enhanced media message with extracted metadata
+                var enhancedMessage = new MediaMessage
+                {
+                    Id = originalMessage.Id ?? string.Empty,
+                    From = originalMessage.From ?? string.Empty,
+                    Author = originalMessage.Author ?? string.Empty,
+                    Type = originalMessage.Type ?? "unknown",
+                    Timestamp = originalMessage.Timestamp ?? DateTimeOffset.Now.ToUnixTimeSeconds(),
+                    Filename = originalMessage.Filename ?? string.Empty,
+                    Data = originalMessage.Data ?? string.Empty,
+                    Size = originalMessage.Size ?? 0,
+                    SenderName = originalMessage.SenderName ?? string.Empty,
+                    
+                    // Enhanced metadata
+                    HasMedia = !string.IsNullOrEmpty(originalMessage.Data?.ToString()),
+                    MediaType = ExtractMediaType(originalMessage.Type?.ToString(), originalMessage.Filename?.ToString()),
+                    MimeType = ExtractMimeType(originalMessage.Type?.ToString(), originalMessage.Filename?.ToString()),
+                    Body = string.Empty, // Node.js MediaInfo doesn't have Body property
+                    FromMe = false // Node.js MediaInfo doesn't have FromMe property
+                };
+
+                return enhancedMessage;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhatsAppService] Error processing media message: {ex.Message}");
+                
+                // Return basic message if processing fails
+                return new MediaMessage
+                {
+                    Id = originalMessage.Id?.ToString() ?? Guid.NewGuid().ToString(),
+                    Type = "unknown",
+                    HasMedia = false,
+                    Timestamp = DateTimeOffset.Now.ToUnixTimeSeconds()
+                };
+            }
+        }
+
+        private string ExtractMediaType(string? messageType, string? fileName)
+        {
+            if (!string.IsNullOrEmpty(messageType))
+            {
+                return messageType.ToLower() switch
+                {
+                    "image" => "image",
+                    "video" => "video", 
+                    "audio" => "audio",
+                    "document" => "document",
+                    "sticker" => "sticker",
+                    _ => "unknown"
+                };
+            }
+
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var ext = Path.GetExtension(fileName).ToLower();
+                return ext switch
+                {
+                    ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" => "image",
+                    ".mp4" or ".avi" or ".mov" or ".webm" => "video",
+                    ".mp3" or ".wav" or ".ogg" or ".m4a" => "audio", 
+                    ".pdf" or ".doc" or ".docx" or ".txt" => "document",
+                    _ => "unknown"
+                };
+            }
+
+            return "unknown";
+        }
+
+        private string ExtractMimeType(string? messageType, string? fileName)
+        {
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var ext = Path.GetExtension(fileName).ToLower();
+                return ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".gif" => "image/gif",
+                    ".webp" => "image/webp",
+                    ".mp4" => "video/mp4",
+                    ".webm" => "video/webm",
+                    ".mp3" => "audio/mpeg",
+                    ".wav" => "audio/wav",
+                    ".ogg" => "audio/ogg",
+                    ".pdf" => "application/pdf",
+                    ".txt" => "text/plain",
+                    _ => "application/octet-stream"
+                };
+            }
+
+            return messageType?.ToLower() switch
+            {
+                "image" => "image/jpeg",
+                "video" => "video/mp4", 
+                "audio" => "audio/mpeg",
+                "document" => "application/pdf",
+                _ => "application/octet-stream"
+            };
         }
 
         public async Task DisposeAsync()

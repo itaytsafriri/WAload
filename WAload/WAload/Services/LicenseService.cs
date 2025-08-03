@@ -10,10 +10,11 @@ namespace WAload.Services
 {
     public class LicenseService
     {
-        private const string LicenseFileName = "waload_license.key";
-        private const string MachineIdFileName = "waload_machine.id";
-        private static readonly string LicenseFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, LicenseFileName);
-        private static readonly string MachineIdFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, MachineIdFileName);
+        private const string LicenseFileName = "sys_config_3a7b9c.dat";
+        private const string MachineIdFileName = "app_state_7f2e8d.bin";
+        private static readonly string AppDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SystemConfig", "AppCache");
+        private static readonly string LicenseFilePath = Path.Combine(AppDataFolder, LicenseFileName);
+        private static readonly string MachineIdFilePath = Path.Combine(AppDataFolder, MachineIdFileName);
 
         public class LicenseData
         {
@@ -29,6 +30,56 @@ namespace WAload.Services
             public string Message { get; set; } = string.Empty;
             public LicenseData? LicenseData { get; set; }
             public string[] AvailableFeatures { get; set; } = Array.Empty<string>();
+        }
+
+        private void EnsureAppDataDirectoryExists()
+        {
+            if (!Directory.Exists(AppDataFolder))
+            {
+                Directory.CreateDirectory(AppDataFolder);
+                // Set directory as hidden
+                var dirInfo = new DirectoryInfo(AppDataFolder);
+                dirInfo.Attributes |= FileAttributes.Hidden;
+                System.Diagnostics.Debug.WriteLine($"[LicenseService] Created hidden license directory: {AppDataFolder}");
+            }
+        }
+
+        private byte[] ConvertToBinaryFormat(string text)
+        {
+            var textBytes = Encoding.UTF8.GetBytes(text);
+            var random = new Random();
+            var padding = new byte[16];
+            random.NextBytes(padding);
+            
+            // XOR encode with simple pattern
+            for (int i = 0; i < textBytes.Length; i++)
+            {
+                textBytes[i] ^= (byte)(0xAA ^ (i % 256));
+            }
+            
+            // Combine padding + encoded text
+            var result = new byte[padding.Length + textBytes.Length];
+            Array.Copy(padding, 0, result, 0, padding.Length);
+            Array.Copy(textBytes, 0, result, padding.Length, textBytes.Length);
+            
+            return result;
+        }
+
+        private string ConvertFromBinaryFormat(byte[] binaryData)
+        {
+            if (binaryData.Length <= 16) return string.Empty;
+            
+            // Extract encoded text (skip padding)
+            var textBytes = new byte[binaryData.Length - 16];
+            Array.Copy(binaryData, 16, textBytes, 0, textBytes.Length);
+            
+            // XOR decode with same pattern
+            for (int i = 0; i < textBytes.Length; i++)
+            {
+                textBytes[i] ^= (byte)(0xAA ^ (i % 256));
+            }
+            
+            return Encoding.UTF8.GetString(textBytes);
         }
 
         public LicenseValidationResult ValidateLicense()
@@ -63,6 +114,8 @@ namespace WAload.Services
 
         private LicenseValidationResult ValidateLicenseInternal()
         {
+            EnsureAppDataDirectoryExists();
+            
             // Check if license file exists
             if (!File.Exists(LicenseFilePath))
             {
@@ -73,8 +126,23 @@ namespace WAload.Services
                 };
             }
 
-            // Read license key
-            var licenseKey = File.ReadAllText(LicenseFilePath).Trim();
+            // Read license key from binary format
+            string licenseKey;
+            try
+            {
+                var binaryData = File.ReadAllBytes(LicenseFilePath);
+                licenseKey = ConvertFromBinaryFormat(binaryData).Trim();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LicenseService] Error reading license file: {ex.Message}");
+                return new LicenseValidationResult
+                {
+                    IsValid = false,
+                    Message = "Failed to read license file. Please re-enter your license key."
+                };
+            }
+            
             if (string.IsNullOrEmpty(licenseKey))
             {
                 return new LicenseValidationResult
@@ -136,9 +204,12 @@ namespace WAload.Services
                     return false;
                 }
 
-                // Save the license key
-                File.WriteAllText(LicenseFilePath, licenseKey);
-                System.Diagnostics.Debug.WriteLine("[LicenseService] License key saved successfully.");
+                EnsureAppDataDirectoryExists();
+                
+                // Save the license key in binary format
+                var binaryData = ConvertToBinaryFormat(licenseKey);
+                File.WriteAllBytes(LicenseFilePath, binaryData);
+                System.Diagnostics.Debug.WriteLine("[LicenseService] License key saved successfully in binary format.");
                 return true;
             }
             catch (Exception ex)
@@ -173,16 +244,60 @@ namespace WAload.Services
 
         private string GetCurrentMachineIdInternal()
         {
+            EnsureAppDataDirectoryExists();
+            
             // Check if we have a cached machine ID
             if (File.Exists(MachineIdFilePath))
             {
-                return File.ReadAllText(MachineIdFilePath).Trim();
+                try
+                {
+                    // Read machine ID as plain text
+                    var cachedMachineId = File.ReadAllText(MachineIdFilePath).Trim();
+                    
+                    // Validate that the machine ID contains only safe characters
+                    if (!string.IsNullOrEmpty(cachedMachineId) && IsValidMachineId(cachedMachineId))
+                    {
+                        return cachedMachineId;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("[LicenseService] Corrupted machine ID detected, regenerating...");
+                        // Delete corrupted file
+                        File.Delete(MachineIdFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LicenseService] Error reading machine ID file: {ex.Message}");
+                    try
+                    {
+                        File.Delete(MachineIdFilePath);
+                    }
+                    catch { }
+                }
             }
 
             // Generate new machine ID
             var machineId = GenerateMachineId();
-            File.WriteAllText(MachineIdFilePath, machineId);
+            // Save as plain text for clean display
+            File.WriteAllText(MachineIdFilePath, machineId, Encoding.UTF8);
+            System.Diagnostics.Debug.WriteLine($"[LicenseService] New machine ID generated and saved: {machineId}");
             return machineId;
+        }
+
+        private bool IsValidMachineId(string machineId)
+        {
+            // Check if machine ID contains only letters and numbers (no special characters)
+            if (string.IsNullOrEmpty(machineId) || machineId.Length < 16)
+                return false;
+            
+            foreach (char c in machineId)
+            {
+                if (!char.IsLetterOrDigit(c))
+                    return false;
+            }
+            
+            return true;
         }
 
         private string GenerateMachineId()
@@ -193,36 +308,61 @@ namespace WAload.Services
             try
             {
                 // Get computer name
-                sb.Append(Environment.MachineName);
+                sb.Append(Environment.MachineName ?? "UNKNOWN");
+                sb.Append("-");
                 
                 // Get user name
-                sb.Append(Environment.UserName);
+                sb.Append(Environment.UserName ?? "USER");
+                sb.Append("-");
                 
                 // Get OS version
-                sb.Append(Environment.OSVersion.ToString());
+                sb.Append(Environment.OSVersion?.ToString() ?? "OS");
+                sb.Append("-");
                 
                 // Get processor count
                 sb.Append(Environment.ProcessorCount.ToString());
+                sb.Append("-");
                 
                 // Get system directory
-                sb.Append(Environment.SystemDirectory);
+                sb.Append(Environment.SystemDirectory ?? "SYS");
                 
-                // Get working set (memory)
-                sb.Append(Environment.WorkingSet.ToString());
-                
-                // Get current directory
-                sb.Append(Environment.CurrentDirectory);
+                // Add timestamp for uniqueness
+                sb.Append(DateTime.Now.Ticks.ToString());
             }
             catch
             {
-                sb.Append("FALLBACK_ID");
+                sb.Clear();
+                sb.Append($"FALLBACK-ID-{DateTime.Now.Ticks}");
             }
 
-            // Create a hash of the combined system info
+            // Create a hash of the combined system info and ensure clean output
             using (var sha256 = SHA256.Create())
             {
                 var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(sb.ToString()));
-                return Convert.ToBase64String(hash).Substring(0, 32).Replace("/", "_").Replace("+", "-");
+                
+                // Convert to hex instead of base64 for cleaner output
+                var hex = BitConverter.ToString(hash).Replace("-", "");
+                
+                // Take first 32 characters and ensure they're all valid
+                var machineId = hex.Substring(0, Math.Min(32, hex.Length));
+                
+                // Ensure all characters are safe for display
+                var cleanId = new StringBuilder();
+                foreach (char c in machineId)
+                {
+                    if (char.IsLetterOrDigit(c))
+                    {
+                        cleanId.Append(c);
+                    }
+                }
+                
+                // If somehow we don't have enough characters, pad with safe characters
+                while (cleanId.Length < 32)
+                {
+                    cleanId.Append((char)('A' + (cleanId.Length % 26)));
+                }
+                
+                return cleanId.ToString().Substring(0, 32);
             }
         }
 
