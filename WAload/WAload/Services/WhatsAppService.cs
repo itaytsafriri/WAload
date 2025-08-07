@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Management;
 using System.Text.Json;
 using System.Threading.Tasks;
 using WAload.Models;
@@ -42,6 +43,9 @@ namespace WAload.Services
             {
                 // Clean up any existing session data that might be locked
                 CleanupSessionData();
+                
+                // Kill any existing Node processes running whatsapp.js
+                KillExistingNodeProcesses();
                 
                 _nodeScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Node", "whatsapp.js");
                 
@@ -104,6 +108,81 @@ namespace WAload.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[CleanupSessionData] Error cleaning session data: {ex.Message}");
             }
+        }
+
+        private void KillExistingNodeProcesses()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[KillExistingNodeProcesses] Checking for existing Node processes running whatsapp.js...");
+                
+                // Get all Node.js processes
+                var nodeProcesses = Process.GetProcessesByName("node");
+                int killedCount = 0;
+                
+                foreach (var process in nodeProcesses)
+                {
+                    try
+                    {
+                        // Check if this Node process is running whatsapp.js
+                        if (process.MainModule?.FileName != null && 
+                            process.StartInfo?.Arguments?.Contains("whatsapp.js") == true ||
+                            GetProcessCommandLine(process.Id)?.Contains("whatsapp.js") == true)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[KillExistingNodeProcesses] Found Node process running whatsapp.js (PID: {process.Id}), killing...");
+                            process.Kill(true);
+                            killedCount++;
+                            System.Diagnostics.Debug.WriteLine($"[KillExistingNodeProcesses] Killed Node process (PID: {process.Id})");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[KillExistingNodeProcesses] Error checking/killing process {process.Id}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                if (killedCount > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[KillExistingNodeProcesses] Killed {killedCount} existing Node process(es) running whatsapp.js");
+                    // Give a moment for processes to fully terminate
+                    System.Threading.Thread.Sleep(1000);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[KillExistingNodeProcesses] No existing Node processes running whatsapp.js found");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[KillExistingNodeProcesses] Error during Node process cleanup: {ex.Message}");
+            }
+        }
+
+        private string? GetProcessCommandLine(int processId)
+        {
+            try
+            {
+                using (var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT CommandLine FROM Win32_Process WHERE ProcessId = " + processId))
+                {
+                    using (var objects = searcher.Get())
+                    {
+                        foreach (System.Management.ManagementObject obj in objects)
+                        {
+                            return obj["CommandLine"]?.ToString();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore errors when querying process command line
+            }
+            return null;
         }
 
         private async Task StartNodeProcessAsync()

@@ -290,9 +290,12 @@ namespace WAload
             // Check FFmpeg availability
             if (_videoProcessingService.IsFFmpegAvailable())
             {
-                var ffmpegVersion = _videoProcessingService.GetFFmpegVersion();
-                System.Diagnostics.Debug.WriteLine($"FFmpeg available: {ffmpegVersion}");
-                StatusMessage = $"FFmpeg ready: {ffmpegVersion}";
+                _ = Task.Run(async () =>
+                {
+                    var ffmpegVersion = await _videoProcessingService.GetFFmpegVersion();
+                    System.Diagnostics.Debug.WriteLine($"FFmpeg available: {ffmpegVersion}");
+                    Dispatcher.Invoke(() => StatusMessage = $"FFmpeg ready: {ffmpegVersion}");
+                });
             }
             else
             {

@@ -3,12 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
+using WAload.Models;
 
 namespace WAload.Services
 {
     public class VideoProcessingService
     {
         private readonly string _ffmpegPath;
+        private readonly VideoSettingsService _settingsService;
         private Process? _currentProcess;
 
         public VideoProcessingService()
@@ -19,6 +21,9 @@ namespace WAload.Services
             
             // Construct path to ffmpeg executable
             _ffmpegPath = Path.Combine(assemblyDirectory, "ffmpeg", "ffmpeg.exe");
+            
+            // Initialize settings service
+            _settingsService = new VideoSettingsService();
             
             if (!File.Exists(_ffmpegPath))
             {
@@ -155,16 +160,20 @@ namespace WAload.Services
 
                 try
                 {
+                    var settings = GetCurrentSettings();
                     string blurArgs;
+                    
                     if (saveAsMxf)
                     {
                         // MXF command for Avid compatibility with MPEG-2 video
-                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080,format=yuv422p[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,format=yuv422p[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv422p,fps=25,fieldorder=tff[vid];[0:a]channelsplit=channel_layout=stereo[left][right];[left]aresample=async=1:first_pts=0[leftfix];[right]aresample=async=1:first_pts=0[rightfix]\" -map \"[vid]\" -map \"[leftfix]\" -map \"[rightfix]\" -c:v mpeg2video -r 25 -pix_fmt yuv422p -b:v 50M -minrate 50M -maxrate 50M -bufsize 17825792 -flags +ildct+ilme -g 12 -bf 2 -color_range tv -c:a pcm_s24le -ar 48000 -metadata:s:a:0 \"track_name=Track 2\" -metadata:s:a:1 \"track_name=Track 3\" -metadata \"company_name=Open Media App\" -metadata \"application_platform=Windows 10\" -timecode 00:00:00:00 -f mxf -muxpreload 0 -muxdelay 0 -shortest \"{tempOutputPath}\"";
+                        var mxfCommand = settings?.VideoBlurMxf?.Command ?? "-y -i \"{input_path}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080,format=yuv422p[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,format=yuv422p[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv422p,fps=25,fieldorder=tff[vid];[0:a]channelsplit=channel_layout=stereo[left][right];[left]aresample=async=1:first_pts=0[leftfix];[right]aresample=async=1:first_pts=0[rightfix]\" -map \"[vid]\" -map \"[leftfix]\" -map \"[rightfix]\" -c:v mpeg2video -r 25 -pix_fmt yuv422p -b:v 50M -minrate 50M -maxrate 50M -bufsize 17825792 -flags +ildct+ilme -g 12 -bf 2 -color_range tv -c:a pcm_s24le -ar 48000 -metadata:s:a:0 \"track_name=Track 2\" -metadata:s:a:1 \"track_name=Track 3\" -metadata \"company_name=Open Media App\" -metadata \"application_platform=Windows 10\" -timecode 00:00:00:00 -f mxf -muxpreload 0 -muxdelay 0 -shortest \"{output_path}\"";
+                        blurArgs = mxfCommand.Replace("{input_path}", inputPath).Replace("{output_path}", tempOutputPath);
                     }
                     else
                     {
                         // Standard MP4 command
-                        blurArgs = $"-y -i \"{inputPath}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p\" -c:v libx264 -preset medium -crf 23 -movflags +faststart \"{tempOutputPath}\"";
+                        var mp4Command = settings?.VideoBlurMp4?.Command ?? "-y -i \"{input_path}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,gblur=sigma=20,crop=1920:1080[bg];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=yuv420p\" -c:v libx264 -preset medium -crf 23 -movflags +faststart \"{output_path}\"";
+                        blurArgs = mp4Command.Replace("{input_path}", inputPath).Replace("{output_path}", tempOutputPath);
                     }
                     
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Running blur command: {blurArgs}");
@@ -351,9 +360,9 @@ namespace WAload.Services
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Using temp directory: {tempDir}");
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Temp output path: {tempOutputPath}");
 
-                // Convert image to 16:9 aspect ratio with blurred background effect
-                var filterComplex = "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=10[bg];[0:v]scale=-1:1080,setsar=1[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2";
-                var imageArgs = $"-i \"{inputPath}\" -filter_complex \"{filterComplex}\" -frames:v 1 -update 1 \"{outputPath}\"";
+                var settings = GetCurrentSettings();
+                var imageCommand = settings?.ImageBlur?.Command ?? "-i \"{input_path}\" -filter_complex \"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=10[bg];[0:v]scale=-1:1080,setsar=1[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2\" -frames:v 1 -update 1 \"{output_path}\"";
+                var imageArgs = imageCommand.Replace("{input_path}", inputPath).Replace("{output_path}", outputPath);
                 
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Running image conversion command: {imageArgs}");
                 
@@ -461,6 +470,41 @@ namespace WAload.Services
         }
 
         /// <summary>
+        /// Resets video processing settings to default values
+        /// </summary>
+        /// <returns>True if successful, false otherwise</returns>
+        public bool ResetVideoProcessingSettings()
+        {
+            try
+            {
+                return _settingsService.ResetToDefault();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Error resetting video processing settings: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets the path to the video settings file
+        /// </summary>
+        /// <returns>Path to the video settings file</returns>
+        public string GetVideoSettingsPath()
+        {
+            return _settingsService.GetSettingsPath();
+        }
+
+        /// <summary>
+        /// Gets the current video settings
+        /// </summary>
+        /// <returns>Current video settings or null if loading fails</returns>
+        private VideoSettings? GetCurrentSettings()
+        {
+            return _settingsService.LoadSettings();
+        }
+
+        /// <summary>
         /// Gets the FFmpeg version
         /// </summary>
         public async Task<string> GetFFmpegVersion()
@@ -470,10 +514,13 @@ namespace WAload.Services
                 if (!File.Exists(_ffmpegPath))
                     return "FFmpeg not found";
 
+                var settings = GetCurrentSettings();
+                var versionCommand = settings?.VersionCommand ?? "-version";
+
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = _ffmpegPath,
-                    Arguments = "-version",
+                    Arguments = versionCommand,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow = true
@@ -503,10 +550,14 @@ namespace WAload.Services
                 if (!File.Exists(videoPath) || !File.Exists(_ffmpegPath))
                     return TimeSpan.Zero;
 
+                var settings = GetCurrentSettings();
+                var durationCommand = settings?.DurationCommand ?? "-i \"{input_path}\"";
+                var arguments = durationCommand.Replace("{input_path}", videoPath);
+
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = _ffmpegPath,
-                    Arguments = $"-i \"{videoPath}\"",
+                    Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardError = true,
                     CreateNoWindow = true
@@ -554,13 +605,17 @@ namespace WAload.Services
                     Directory.CreateDirectory(outputDir);
                 }
 
+                var settings = GetCurrentSettings();
+                var primaryCommand = settings?.ThumbnailPrimary?.Command ?? "-y -i \"{input_path}\" -vframes 1 -ss {time_position} -vf \"scale=320:-1:flags=lanczos\" -q:v 2 \"{output_path}\"";
+                
                 // Format time for FFmpeg
                 var timeString = $"{position.Hours:D2}:{position.Minutes:D2}:{position.Seconds:D2}.{position.Milliseconds:D3}";
+                var arguments = primaryCommand.Replace("{input_path}", videoPath).Replace("{output_path}", thumbnailPath).Replace("{time_position}", timeString);
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = _ffmpegPath,
-                    Arguments = $"-y -i \"{videoPath}\" -vframes 1 -ss {timeString} -vf \"scale=320:-1:flags=lanczos\" -q:v 2 \"{thumbnailPath}\"",
+                    Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -578,10 +633,13 @@ namespace WAload.Services
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] FFmpeg thumbnail generation failed: {error}");
                     
                     // Try fallback: extract first frame without seeking
+                    var fallbackCommand = settings?.ThumbnailFallback?.Command ?? "-y -i \"{input_path}\" -vframes 1 -vf \"scale=320:-1:flags=lanczos\" -q:v 2 \"{output_path}\"";
+                    var fallbackArguments = fallbackCommand.Replace("{input_path}", videoPath).Replace("{output_path}", thumbnailPath);
+                    
                     var fallbackStartInfo = new ProcessStartInfo
                     {
                         FileName = _ffmpegPath,
-                        Arguments = $"-y -i \"{videoPath}\" -vframes 1 -vf \"scale=320:-1:flags=lanczos\" -q:v 2 \"{thumbnailPath}\"",
+                        Arguments = fallbackArguments,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
