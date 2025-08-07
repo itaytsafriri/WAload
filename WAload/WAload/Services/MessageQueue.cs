@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,7 @@ namespace WAload.Services
         private int _failedCount = 0;
         private System.Threading.Timer? _batchProcessingTimer;
         private readonly List<MediaMessage> _pendingBatch = new List<MediaMessage>();
+        private readonly SupabaseLoggingService _loggingService;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<MediaMessage>? MessageProcessed;
@@ -110,7 +112,11 @@ namespace WAload.Services
         {
             // Initialize batch processing timer (process every 2 seconds)
             _batchProcessingTimer = new System.Threading.Timer(ProcessBatch, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
-            System.Diagnostics.Debug.WriteLine("[MessageQueue] Initialized with batch processing");
+            
+            // Initialize logging service
+            _loggingService = new SupabaseLoggingService();
+            
+            System.Diagnostics.Debug.WriteLine("[MessageQueue] Initialized with batch processing and Supabase logging");
         }
 
         /// <summary>
@@ -255,6 +261,9 @@ namespace WAload.Services
                     MessageProcessed?.Invoke(this, message);
                     
                     System.Diagnostics.Debug.WriteLine($"[MessageQueue] Successfully processed: {message.Id}");
+                    
+                    // Log successful processing to Supabase
+                    await LogMediaProcessing(message, true);
                     return;
                 }
                 catch (Exception ex)
@@ -274,6 +283,25 @@ namespace WAload.Services
             FailedCount++;
             System.Diagnostics.Debug.WriteLine($"[MessageQueue] Failed to process after {maxRetries} attempts: {message.Id}");
             System.Diagnostics.Debug.WriteLine($"[MessageQueue] Last error: {lastException?.Message}");
+            
+            // Log failed processing to Supabase
+            await LogMediaProcessing(message, false);
+        }
+
+        private async Task LogMediaProcessing(MediaMessage message, bool successful)
+        {
+            try
+            {
+                var sender = message.SenderName ?? message.Author ?? "unknown";
+                var mediaType = message.MediaType ?? "unknown";
+                var extension = Path.GetExtension(message.Filename ?? "") ?? "";
+                
+                await _loggingService.LogMediaProcessingAsync(sender, mediaType, false, successful, extension);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MessageQueue] Failed to log to Supabase: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -331,6 +359,22 @@ namespace WAload.Services
             }
         }
 
+        /// <summary>
+        /// Tests the Supabase logging connection
+        /// </summary>
+        public async Task<bool> TestLoggingConnectionAsync()
+        {
+            try
+            {
+                return await _loggingService.TestConnectionAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MessageQueue] Error testing logging connection: {ex.Message}");
+                return false;
+            }
+        }
+
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -355,6 +399,9 @@ namespace WAload.Services
                 IsProcessingEnabled = false;
                 _batchProcessingTimer?.Dispose();
                 _batchProcessingTimer = null;
+                
+                // Dispose logging service
+                _loggingService?.Dispose();
                 
                 // Clear collections
                 lock (_lockObject)

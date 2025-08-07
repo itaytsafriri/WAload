@@ -11,6 +11,7 @@ namespace WAload.Services
     {
         private readonly string _ffmpegPath;
         private readonly VideoSettingsService _settingsService;
+        private readonly SupabaseLoggingService _loggingService;
         private Process? _currentProcess;
 
         public VideoProcessingService()
@@ -24,6 +25,9 @@ namespace WAload.Services
             
             // Initialize settings service
             _settingsService = new VideoSettingsService();
+            
+            // Initialize logging service
+            _loggingService = new SupabaseLoggingService();
             
             if (!File.Exists(_ffmpegPath))
             {
@@ -87,6 +91,10 @@ namespace WAload.Services
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Processing image file: {Path.GetFileName(inputPath)}");
                     var result = await ConvertImageTo16x9WithBlurredBackground(inputPath, outputPath, progress, cancellationToken);
                     progress?.Invoke(1.0); // Ensure progress callback is called on completion
+                    
+                    // Log the conversion result
+                    await LogVideoConversion("image", fileExtension, result, "system");
+                    
                     return result;
                 }
                 else
@@ -94,6 +102,10 @@ namespace WAload.Services
                     System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Processing video file: {Path.GetFileName(inputPath)}");
                     var result = await ConvertVideoTo16x9WithBlurredBackground(inputPath, outputPath, progress, cancellationToken, saveAsMxf);
                     progress?.Invoke(1.0); // Ensure progress callback is called on completion
+                    
+                    // Log the conversion result
+                    await LogVideoConversion("video", fileExtension, result, "system");
+                    
                     return result;
                 }
             }
@@ -133,6 +145,21 @@ namespace WAload.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Error cancelling process: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Logs video conversion results to Supabase
+        /// </summary>
+        private async Task LogVideoConversion(string mediaType, string extension, bool successful, string sender)
+        {
+            try
+            {
+                await _loggingService.LogMediaProcessingAsync(sender, mediaType, true, successful, extension);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Failed to log to Supabase: {ex.Message}");
             }
         }
 
