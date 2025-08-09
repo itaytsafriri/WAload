@@ -9,6 +9,8 @@ namespace WAload.Models
         private bool _isMediaProcessingEnabled = false;
         private bool _saveAsMxfForAvid = false;
         private bool _downloadSocialMediaVideos = false;
+        private bool _folderSortingEnabled = false;
+        private string? _folderSortingRootDirectory = null;
 
         public bool ScreenshotXTweets
         {
@@ -71,6 +73,32 @@ namespace WAload.Models
                 {
                     _downloadSocialMediaVideos = value;
                     OnPropertyChanged(nameof(DownloadSocialMediaVideos));
+                }
+            }
+        }
+
+        public bool FolderSortingEnabled
+        {
+            get => _folderSortingEnabled;
+            set
+            {
+                if (_folderSortingEnabled != value)
+                {
+                    _folderSortingEnabled = value;
+                    OnPropertyChanged(nameof(FolderSortingEnabled));
+                }
+            }
+        }
+
+        public string? FolderSortingRootDirectory
+        {
+            get => _folderSortingRootDirectory;
+            set
+            {
+                if (_folderSortingRootDirectory != value)
+                {
+                    _folderSortingRootDirectory = value;
+                    OnPropertyChanged(nameof(FolderSortingRootDirectory));
                 }
             }
         }
