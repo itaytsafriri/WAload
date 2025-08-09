@@ -295,7 +295,25 @@ namespace WAload.Services
                 var sender = message.SenderName ?? message.Author ?? "unknown";
                 var mediaType = message.MediaType ?? "unknown";
                 var extension = Path.GetExtension(message.Filename ?? "") ?? "";
-                
+                // Folder sorting relocation (if enabled)
+                try {
+                    var settingsService = new SettingsService();
+                    var settings = settingsService.LoadSettings();
+                    if (settings.FolderSortingEnabled)
+                    {
+                        var perNameFolder = FolderSortingService.EnsurePerNameFolder(settings.FolderSortingRootDirectory, message.Body ?? "", sender);
+                        var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                        var (origPath, procPath) = FolderSortingService.GetOrigAndProcPaths(perNameFolder, extension);
+                        if (!string.IsNullOrEmpty(message.Filename) && File.Exists(message.Filename) && !File.Exists(origPath))
+                            File.Move(message.Filename, origPath);
+                        var dir = Path.GetDirectoryName(message.Filename ?? string.Empty) ?? perNameFolder;
+                        var origBase = Path.GetFileNameWithoutExtension(message.Filename ?? "");
+                        var candidate = Path.Combine(dir, origBase + "_processed" + extension);
+                        if (File.Exists(candidate) && !File.Exists(procPath))
+                            File.Move(candidate, procPath);
+                    }
+                } catch { }
+
                 // Check if this is a link-based message
                 bool? isLink = null;
                 string? linkType = null;
