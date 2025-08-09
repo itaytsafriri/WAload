@@ -274,5 +274,13 @@
                 <ToggleButton Grid.Column="1" x:Name="FolderSortingEnabledToggle" Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+
+        <!-- Folder Sorting Root Directory (optional, shown as tall area) -->
+        <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,10,0,0">
+            <StackPanel>
+                <TextBlock Text="Folder root directory (optional)" FontSize="12" Foreground="#6C757D"/>
+                <TextBox x:Name="FolderSortingRootDirBox" Height="28" Margin="0,6,0,0" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window> 
