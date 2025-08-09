@@ -119,6 +119,12 @@ namespace WAload.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[VideoProcessing] Error during conversion: {ex.Message}");
                 progress?.Invoke(1.0); // Ensure progress callback is called even on exception
+                
+                // Log the failed conversion with error details
+                var fileExtension = Path.GetExtension(inputPath).ToLowerInvariant();
+                var isImage = fileExtension == ".jpg" || fileExtension == ".jpeg" || fileExtension == ".png" || fileExtension == ".bmp" || fileExtension == ".gif";
+                await LogVideoConversion(isImage ? "image" : "video", fileExtension, false, "system", ex.Message);
+                
                 return false;
             }
             finally
@@ -151,11 +157,11 @@ namespace WAload.Services
         /// <summary>
         /// Logs video conversion results to Supabase
         /// </summary>
-        private async Task LogVideoConversion(string mediaType, string extension, bool successful, string sender)
+        private async Task LogVideoConversion(string mediaType, string extension, bool successful, string sender, string? errors = null)
         {
             try
             {
-                await _loggingService.LogMediaProcessingAsync(sender, mediaType, true, successful, extension);
+                await _loggingService.LogMediaProcessingAsync(sender, mediaType, true, successful, extension, false, (string?)null, false, errors);
             }
             catch (Exception ex)
             {

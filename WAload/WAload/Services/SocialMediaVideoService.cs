@@ -30,6 +30,7 @@ namespace WAload.Services
     {
         private readonly string _ytdlpPath;
         private readonly string _downloadFolder;
+        private readonly SupabaseLoggingService _loggingService;
 
         public SocialMediaVideoService(string downloadFolder)
         {
@@ -39,6 +40,9 @@ namespace WAload.Services
             // Construct path to yt-dlp executable
             _ytdlpPath = Path.Combine(assemblyDirectory, "ytdl", "yt-dlp.exe");
             _downloadFolder = downloadFolder;
+            
+            // Initialize logging service
+            _loggingService = new SupabaseLoggingService();
             
             System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Looking for yt-dlp at: {_ytdlpPath}");
             System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Assembly directory: {assemblyDirectory}");
@@ -316,6 +320,10 @@ namespace WAload.Services
                 if (process.ExitCode != 0)
                 {
                     System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] yt-dlp failed with exit code: {process.ExitCode}");
+                    
+                    // Log failed ytdl download
+                    await LogYtdlDownload(url, senderName, false, "", $"yt-dlp failed with exit code {process.ExitCode}: {error}");
+                    
                     return null;
                 }
 
@@ -327,18 +335,70 @@ namespace WAload.Services
                 if (downloadedFile != null)
                 {
                     System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Successfully downloaded: {downloadedFile}");
+                    
+                    // Log successful ytdl download
+                    await LogYtdlDownload(url, senderName, true, Path.GetExtension(downloadedFile), null);
+                    
                     return downloadedFile;
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Could not find downloaded file");
+                    
+                    // Log failed ytdl download
+                    await LogYtdlDownload(url, senderName, false, "", "Downloaded file not found");
+                    
                     return null;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Exception downloading video: {ex.Message}");
+                
+                // Log exception in ytdl download
+                await LogYtdlDownload(url, senderName, false, "", ex.Message);
+                
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Logs ytdl download results to Supabase
+        /// </summary>
+        private async Task LogYtdlDownload(string url, string senderName, bool successful, string extension, string? errors)
+        {
+            try
+            {
+                // Determine link type from URL
+                var linkType = "other";
+                var urlLower = url.ToLower();
+                
+                if (urlLower.Contains("youtube.com") || urlLower.Contains("youtu.be"))
+                    linkType = "youtube";
+                else if (urlLower.Contains("twitter.com") || urlLower.Contains("x.com"))
+                    linkType = "twitter";
+                else if (urlLower.Contains("tiktok.com"))
+                    linkType = "tiktok";
+                else if (urlLower.Contains("instagram.com"))
+                    linkType = "instagram";
+                else if (urlLower.Contains("facebook.com"))
+                    linkType = "facebook";
+                
+                await _loggingService.LogMediaProcessingAsync(
+                    senderName, 
+                    "video", 
+                    false, // autoConverted - not applicable for downloads
+                    successful, 
+                    extension,
+                    true, // isLink - always true for social media downloads
+                    linkType,
+                    true, // ytdlUsed - always true for this service
+                    errors
+                );
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SocialMediaVideo] Failed to log to Supabase: {ex.Message}");
             }
         }
 

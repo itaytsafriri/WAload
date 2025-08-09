@@ -1,0 +1,17 @@
+<Configuration>
+  <VGpu>Enabled</VGpu>
+  <Networking>Enabled</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>D:\source\repos\WAload\WAload\WAload\bin\Release\net9.0-windows\win-x64\publish</HostFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>D:\source\repos\WAload\WAload\WULoad\WUload\Release</HostFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>cmd.exe</Command>
+  </LogonCommand>
+</Configuration>

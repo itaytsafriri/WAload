@@ -285,10 +285,10 @@ namespace WAload.Services
             System.Diagnostics.Debug.WriteLine($"[MessageQueue] Last error: {lastException?.Message}");
             
             // Log failed processing to Supabase
-            await LogMediaProcessing(message, false);
+            await LogMediaProcessing(message, false, lastException?.Message);
         }
 
-        private async Task LogMediaProcessing(MediaMessage message, bool successful)
+        private async Task LogMediaProcessing(MediaMessage message, bool successful, string? errors = null)
         {
             try
             {
@@ -296,7 +296,41 @@ namespace WAload.Services
                 var mediaType = message.MediaType ?? "unknown";
                 var extension = Path.GetExtension(message.Filename ?? "") ?? "";
                 
-                await _loggingService.LogMediaProcessingAsync(sender, mediaType, false, successful, extension);
+                // Check if this is a link-based message
+                bool? isLink = null;
+                string? linkType = null;
+                
+                if (!string.IsNullOrEmpty(message.Body))
+                {
+                    // Simple URL detection
+                    var urlPattern = @"https?://[^\s]+";
+                    var matches = System.Text.RegularExpressions.Regex.Matches(message.Body, urlPattern);
+                    if (matches.Count > 0)
+                    {
+                        isLink = true;
+                        var firstUrl = matches[0].Value.ToLower();
+                        
+                        // Determine link type based on URL
+                        if (firstUrl.Contains("youtube.com") || firstUrl.Contains("youtu.be"))
+                            linkType = "youtube";
+                        else if (firstUrl.Contains("twitter.com") || firstUrl.Contains("x.com"))
+                            linkType = "twitter";
+                        else if (firstUrl.Contains("tiktok.com"))
+                            linkType = "tiktok";
+                        else if (firstUrl.Contains("instagram.com"))
+                            linkType = "instagram";
+                        else if (firstUrl.Contains("facebook.com"))
+                            linkType = "facebook";
+                        else
+                            linkType = "other";
+                    }
+                    else
+                    {
+                        isLink = false;
+                    }
+                }
+                
+                await _loggingService.LogMediaProcessingAsync(sender, mediaType, false, successful, extension, isLink, linkType, null, errors);
             }
             catch (Exception ex)
             {

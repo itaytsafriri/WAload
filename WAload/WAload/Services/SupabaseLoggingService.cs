@@ -57,7 +57,7 @@ namespace WAload.Services
             return "unknown";
         }
 
-        public async Task LogClientActivityAsync(string sender, string mediaType, string autoConverted, string successful, string extension)
+        public async Task LogClientActivityAsync(string sender, string mediaType, string autoConverted, string successful, string extension, bool? isLink = null, string? linkType = null, bool? ytdlUsed = null, bool? wasSuccess = null, string? errors = null)
         {
             try
             {
@@ -68,7 +68,12 @@ namespace WAload.Services
                     mediatype = mediaType,
                     autoconverted = autoConverted,
                     succsesful = successful,
-                    ext = extension
+                    ext = extension,
+                    is_link = isLink,
+                    link_type = linkType,
+                    ytdl_used = ytdlUsed,
+                    was_sucsess = wasSuccess,
+                    errors = errors
                 };
 
                 var json = JsonConvert.SerializeObject(logEntry);
@@ -92,14 +97,19 @@ namespace WAload.Services
             }
         }
 
-        public async Task LogMediaProcessingAsync(string sender, string mediaType, bool autoConverted, bool successful, string extension)
+        public async Task LogMediaProcessingAsync(string sender, string mediaType, bool autoConverted, bool successful, string extension, bool? isLink = null, string? linkType = null, bool? ytdlUsed = null, string? errors = null)
         {
             await LogClientActivityAsync(
                 sender,
                 mediaType,
                 autoConverted ? "yes" : "no",
                 successful ? "yes" : "no",
-                extension
+                extension,
+                isLink,
+                linkType,
+                ytdlUsed,
+                successful, // Map successful to was_sucsess
+                errors
             );
         }
 
@@ -117,7 +127,12 @@ namespace WAload.Services
                     mediatype = "test",
                     autoconverted = "no",
                     succsesful = "yes",
-                    ext = "test"
+                    ext = "test",
+                    is_link = false,
+                    link_type = (string?)null,
+                    ytdl_used = false,
+                    was_sucsess = true,
+                    errors = (string?)null
                 };
 
                 var json = JsonConvert.SerializeObject(testEntry);
