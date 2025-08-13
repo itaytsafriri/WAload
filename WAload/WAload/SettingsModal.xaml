@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings" 
-        Height="900" Width="560"
+        Height="700" Width="900"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#F8F9FA"
@@ -75,7 +75,6 @@
         </Style>
     </Window.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -91,7 +90,15 @@
                    Foreground="#343A40"/>
 
         <!-- Settings Content -->
-        <StackPanel Grid.Row="1" Margin="0,0,0,20">
+        <ScrollViewer Grid.Row="1" Margin="0,0,0,20" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Left Column -->
+                <StackPanel Grid.Column="0" Margin="0,0,10,0">
             
             <!-- Screenshot X Tweets Setting -->
             <Border Background="White" 
@@ -216,6 +223,106 @@
                                   VerticalAlignment="Center"/>
                 </Grid>
             </Border>
+            
+            </StackPanel>
+            
+            <!-- Right Column -->
+            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+
+            <!-- ch13 features - Dated Folders and Folder Format Sorting (client-specific features) - HIDDEN FOR NORMAL RELEASE -->
+            <!--
+            <Border Background="White" 
+                    BorderBrush="#DEE2E6" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Dated Folders" 
+                                   FontSize="18" FontWeight="SemiBold" 
+                                   Margin="0,0,0,5"
+                                   Foreground="#212121"/>
+                        <TextBlock Text="Create date-based folders (dd-mm-yy) for organizing files by download date" 
+                                   FontSize="14" 
+                                   Foreground="#6C757D"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <ToggleButton Grid.Column="1" 
+                                  x:Name="DatedFoldersToggle"
+                                  Style="{StaticResource ToggleSwitchStyle}"
+                                  VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Background="White" 
+                    BorderBrush="#DEE2E6" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Folder Format Sorting" 
+                                   FontSize="18" FontWeight="SemiBold" 
+                                   Margin="0,0,0,5"
+                                   Foreground="#212121"/>
+                        <TextBlock Text="Sort files into format-specific subfolders (image, mp4, mxf)" 
+                                   FontSize="14" 
+                                   Foreground="#6C757D"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <ToggleButton Grid.Column="1" 
+                                  x:Name="FolderFormatSortingToggle"
+                                  Style="{StaticResource ToggleSwitchStyle}"
+                                  VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            -->
+
+            <!-- Folder Sorting Setting (Muli feature) - HIDDEN FROM UI, ENABLED BY DEFAULT
+            <Border Background="White" 
+                    BorderBrush="#DEE2E6" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20" 
+                    Margin="0,0,0,15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Folder Sorting" 
+                                   FontSize="18" FontWeight="SemiBold" 
+                                   Margin="0,0,0,5"
+                                   Foreground="#212121"/>
+                        <TextBlock Text="Organize media files into folders based on sender names found in message text (when text contains _name)" 
+                                   FontSize="14" 
+                                   Foreground="#6C757D"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <ToggleButton Grid.Column="1" 
+                                  x:Name="FolderSortingToggle"
+                                  Style="{StaticResource ToggleSwitchStyle}"
+                                  VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            -->
 
             <!-- Video Processing Settings -->
             <Border Background="White" 
@@ -247,8 +354,11 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
-
-        </StackPanel>
+            
+            </StackPanel>
+            
+            </Grid>
+        </ScrollViewer>
 
         <!-- Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -259,28 +369,5 @@
                     Style="{StaticResource ModernButton}"
                     Click="SaveButton_Click"/>
         </StackPanel>
-        
-        <!-- Folder Sorting (new, tall section) -->
-        <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,10,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Folder Sorting" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="#212121"/>
-                    <TextBlock Text="Nest per-name folders under your configured downloads root when enabled" FontSize="14" Foreground="#6C757D" TextWrapping="Wrap"/>
-                </StackPanel>
-                <ToggleButton Grid.Column="1" x:Name="FolderSortingEnabledToggle" Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
-
-        <!-- Folder Sorting Root Directory (optional, shown as tall area) -->
-        <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,10,0,0">
-            <StackPanel>
-                <TextBlock Text="Folder root directory (optional)" FontSize="12" Foreground="#6C757D"/>
-                <TextBox x:Name="FolderSortingRootDirBox" Height="28" Margin="0,6,0,0" />
-            </StackPanel>
-        </Border>
     </Grid>
 </Window> 

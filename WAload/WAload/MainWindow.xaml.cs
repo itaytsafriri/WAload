@@ -34,6 +34,7 @@ namespace WAload
         private SocialMediaVideoService _socialMediaVideoService;
         private readonly SettingsService _settingsService;
         private AppSettings _appSettings;
+        private FolderStructureService? _folderStructureService; // ch13 feature - folder management service
         private readonly ObservableCollection<MediaItem> _mediaItems;
         private readonly ObservableCollection<WhatsGroup> _groups;
         private string _downloadFolder = string.Empty;
@@ -63,6 +64,8 @@ namespace WAload
         private System.Threading.Timer? _socialMediaDownloadErrorTimer;
         private GridViewColumnHeader? _lastHeaderClicked = null;
         private ListSortDirection _lastDirection = ListSortDirection.Ascending;
+        private string? _pendingQrCode = null; // Store QR code until user clicks Connect
+        private bool _userWantsToConnect = false; // Track if user has clicked Connect
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -282,6 +285,9 @@ namespace WAload
             _settingsService = new SettingsService();
             _appSettings = _settingsService.LoadSettings();
             
+            // ch13 feature - Initialize folder structure service
+            _folderStructureService = new FolderStructureService(_appSettings);
+            
             _mediaItems = new ObservableCollection<MediaItem>();
             _groups = new ObservableCollection<WhatsGroup>();
 
@@ -317,6 +323,10 @@ namespace WAload
                 }
                 _appSettings.DownloadFolder = DownloadFolder;
             }
+            
+            // ch13 feature - Initialize date and format folders on app load
+            _folderStructureService?.EnsureDateFolderExists(DownloadFolder);
+            _folderStructureService?.EnsureFormatFoldersExist(DownloadFolder);
 
             // Set media processing from settings
             IsMediaProcessingEnabled = _appSettings.IsMediaProcessingEnabled;
@@ -336,6 +346,9 @@ namespace WAload
 
             // Initialize yt-dlp on startup
             _ = Task.Run(async () => await InitializeYtDlpAsync());
+
+            // Start WhatsApp service on startup for instant QR code availability
+            _ = Task.Run(async () => await StartWhatsAppServiceAsync());
 
             // In MainWindow constructor or OnLoaded, hook up the toggle and animation
             Loaded += (s, e) =>
@@ -544,18 +557,42 @@ namespace WAload
                 {
                     // Logout functionality
                     StatusMessage = "Logging out...";
+                    _userWantsToConnect = false; // Reset flag on logout
+                    _pendingQrCode = null; // Clear stored QR code
                     await _whatsAppService.LogoutAsync();
                 }
                 else
                 {
-                    // Connect functionality
+                    // Connect functionality - service should already be running
                     StatusMessage = "Connecting to WhatsApp...";
                     ConnectButton.IsEnabled = false;
                     StopConnectButtonFlash(); // Stop flashing when clicked
                     
-                    await _whatsAppService.InitializeAsync();
+                    // Set flag that user wants to connect
+                    _userWantsToConnect = true;
                     
-                    StatusMessage = "Waiting for QR code...";
+                    // If we already have a QR code, display it immediately
+                    if (!string.IsNullOrEmpty(_pendingQrCode))
+                    {
+                        DisplayQrCode(_pendingQrCode);
+                    }
+                    else
+                    {
+                        StatusMessage = "Waiting for QR code...";
+                        
+                        // If for some reason the service isn't running, initialize it
+                        if (_whatsAppService.IsConnected == false)
+                        {
+                            try
+                            {
+                                await _whatsAppService.InitializeAsync();
+                            }
+                            catch (Exception initEx)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Service wasn't running, re-initialized: {initEx.Message}");
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -774,16 +811,39 @@ namespace WAload
             }
         }
 
-        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        private void MediaListView_GotFocus(object sender, RoutedEventArgs e)
         {
-            base.OnKeyDown(e);
-            
+            // ListView received focus - ready for keyboard input
+        }
+
+        private void MediaListView_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // Ensure ListView gets focus when clicked
+            if (!MediaListView.IsFocused)
+            {
+                MediaListView.Focus();
+            }
+        }
+
+        private void MediaListView_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
             // Handle Delete key for selected items
             if (e.Key == System.Windows.Input.Key.Delete && MediaListView.SelectedItem is MediaItem item)
             {
                 DeleteFile(item);
                 e.Handled = true;
             }
+            // Handle F2 key for renaming selected items
+            else if (e.Key == System.Windows.Input.Key.F2 && MediaListView.SelectedItem is MediaItem renameItem)
+            {
+                RenameFile(renameItem);
+                e.Handled = true;
+            }
+        }
+
+        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
         }
 
         private void OpenFileMenuItem_Click(object sender, RoutedEventArgs e)
@@ -855,6 +915,10 @@ namespace WAload
                 _appSettings = settingsModal.Settings;
                 _settingsService.SaveSettings(_appSettings);
                 
+                // ch13 features - Reinitialize folder structure service with new settings
+                _folderStructureService?.Dispose();
+                _folderStructureService = new FolderStructureService(_appSettings);
+                
                 // Update UI based on new settings
                 IsMediaProcessingEnabled = _appSettings.IsMediaProcessingEnabled;
                 
@@ -872,6 +936,26 @@ namespace WAload
         {
             System.Diagnostics.Debug.WriteLine($"QR code event received in MainWindow: {qrCode.Substring(0, Math.Min(50, qrCode.Length))}...");
             
+            // Store the QR code for when the user clicks Connect
+            _pendingQrCode = qrCode;
+            
+            // Only display the QR code if the user has clicked Connect
+            if (_userWantsToConnect)
+            {
+                DisplayQrCode(qrCode);
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "WhatsApp service ready - click Connect to see QR code";
+                    System.Diagnostics.Debug.WriteLine("QR code received and stored, waiting for user to click Connect");
+                });
+            }
+        }
+
+        private void DisplayQrCode(string qrCode)
+        {
             Dispatcher.Invoke(() =>
             {
                 try
@@ -1019,6 +1103,32 @@ namespace WAload
                         CreateMediaJsonFile(mediaItem);
                         
                         StatusMessage = $"Downloaded: {mediaItem.FileName}";
+                        
+                        // Automatic media processing for WhatsApp media if enabled
+                        if (_appSettings.IsMediaProcessingEnabled)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[AutoProcessing] Triggering automatic processing for: {mediaItem.FileName}");
+                            
+                            // Process asynchronously without blocking the UI
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await Task.Delay(1000); // 1-second delay to ensure file is ready
+                                    await ProcessMediaFileAsync(mediaItem.FilePath, mediaItem.MediaType);
+                                    Dispatcher.Invoke(() => StatusMessage = $"Auto-processed: {mediaItem.FileName}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[AutoProcessing] Error processing {mediaItem.FileName}: {ex.Message}");
+                                    Dispatcher.Invoke(() => StatusMessage = $"Auto-processing failed: {ex.Message}");
+                                }
+                            });
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[AutoProcessing] Media processing is disabled, skipping: {mediaItem.FileName}");
+                        }
                         
                         // Force UI update
                         OnPropertyChanged(nameof(MediaItems));
@@ -1323,6 +1433,41 @@ namespace WAload
             }, null, TimeSpan.FromHours(24), TimeSpan.FromHours(24)); // First update after 24 hours, then every 24 hours
         }
 
+        private async Task StartWhatsAppServiceAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainWindow] Starting WhatsApp service on app load...");
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "Initializing WhatsApp service...";
+                });
+
+                // Initialize the WhatsApp service
+                await _whatsAppService.InitializeAsync();
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "WhatsApp service ready - QR code will appear when you click Connect";
+                });
+
+                System.Diagnostics.Debug.WriteLine("[MainWindow] WhatsApp service started successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to start WhatsApp service on app load: {ex.Message}");
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "Ready - WhatsApp service will start when you click Connect";
+                });
+            }
+        }
+
         private List<string> ExtractUrls(string text)
         {
             var urls = new List<string>();
@@ -1358,6 +1503,59 @@ namespace WAload
             return null;
         }
 
+        // Muli feature - Helper methods for folder sorting
+        private string LegalizeFolderName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "Unknown";
+            
+            // Remove underscore prefix and suffix
+            name = name.Trim('_');
+            
+            // Replace invalid file system characters
+            var invalidChars = Path.GetInvalidFileNameChars();
+            foreach (var invalidChar in invalidChars)
+            {
+                name = name.Replace(invalidChar, '_');
+            }
+            
+            // Replace additional problematic characters
+            name = name.Replace('?', '_')
+                      .Replace('*', '_')
+                      .Replace('<', '_')
+                      .Replace('>', '_')
+                      .Replace('|', '_')
+                      .Replace('"', '_')
+                      .Replace(':', '_');
+            
+            // Clean up multiple underscores and trim
+            name = System.Text.RegularExpressions.Regex.Replace(name, "_+", "_");
+            name = name.Trim('_');
+            
+            // Ensure not empty
+            if (string.IsNullOrWhiteSpace(name))
+                return "Unknown";
+            
+            return name;
+        }
+
+        private string? ExtractNameFromMessage(string messageBody)
+        {
+            if (string.IsNullOrWhiteSpace(messageBody))
+                return null;
+            
+            // Look for _name pattern (Hebrew or English) - capture everything after _ until end of line or another _
+            var match = System.Text.RegularExpressions.Regex.Match(messageBody, @"_([^_]+?)(?=_|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                // Trim whitespace from the captured name
+                var name = match.Groups[1].Value.Trim();
+                return string.IsNullOrWhiteSpace(name) ? null : name;
+            }
+            
+            return null;
+        }
+
         private async Task<MediaItem?> DownloadMediaAsync(MediaMessage mediaMessage)
         {
             try
@@ -1376,8 +1574,39 @@ namespace WAload
                 var mediaData = Convert.FromBase64String(mediaMessage.Data);
                 System.Diagnostics.Debug.WriteLine($"Decoded data length: {mediaData.Length} bytes");
                 
+                // Determine file path based on folder sorting setting (Muli feature) and ch13 features
+                string targetDirectory = DownloadFolder;
+                
+                // ch13 feature - Get target directory based on date and format settings
+                if (_folderStructureService != null)
+                {
+                    targetDirectory = _folderStructureService.GetTargetDirectory(DownloadFolder, mediaMessage.Filename, mediaMessage.MediaType ?? mediaMessage.Type);
+                    System.Diagnostics.Debug.WriteLine($"[ch13] Target directory: {targetDirectory}");
+                }
+                
+                // Muli feature - Check if folder sorting is enabled and message contains _name
+                if (_appSettings.FolderSorting && !string.IsNullOrWhiteSpace(mediaMessage.Body))
+                {
+                    var extractedName = ExtractNameFromMessage(mediaMessage.Body);
+                    if (!string.IsNullOrWhiteSpace(extractedName))
+                    {
+                        var legalizedName = LegalizeFolderName(extractedName);
+                        var subfolderPath = Path.Combine(targetDirectory, legalizedName);
+                        
+                        // Create subfolder if it doesn't exist
+                        if (!Directory.Exists(subfolderPath))
+                        {
+                            Directory.CreateDirectory(subfolderPath);
+                            System.Diagnostics.Debug.WriteLine($"[Muli] Created subfolder: {subfolderPath}");
+                        }
+                        
+                        targetDirectory = subfolderPath;
+                        System.Diagnostics.Debug.WriteLine($"[Muli] Using subfolder for file: {targetDirectory}");
+                    }
+                }
+                
                 // Use filename directly from WhatsApp.js (already in correct format)
-                var filePath = Path.Combine(DownloadFolder, mediaMessage.Filename);
+                var filePath = Path.Combine(targetDirectory, mediaMessage.Filename);
                 
                 // Ensure unique filename to avoid conflicts
                 var counter = 1;
@@ -1385,7 +1614,7 @@ namespace WAload
                 {
                     var fileNameWithoutExt = Path.GetFileNameWithoutExtension(mediaMessage.Filename);
                     var extension = Path.GetExtension(mediaMessage.Filename);
-                    filePath = Path.Combine(DownloadFolder, $"{fileNameWithoutExt}_{counter}{extension}");
+                    filePath = Path.Combine(targetDirectory, $"{fileNameWithoutExt}_{counter}{extension}");
                     counter++;
                 }
                 
@@ -1491,14 +1720,22 @@ namespace WAload
                 var fileName = Path.GetFileNameWithoutExtension(originalFilePath);
                 var outputExtension = _appSettings.SaveAsMxfForAvid && (extension == ".mp4" || extension == ".avi" || extension == ".mov" || extension == ".wmv") ? ".mxf" : extension;
                 var newFileName = $"{fileName}_processed{outputExtension}";
-                var processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
+                
+                // ch13 feature - Get target directory for processed file based on format sorting
+                var targetDirectory = Path.GetDirectoryName(originalFilePath)!;
+                if (_folderStructureService != null)
+                {
+                    targetDirectory = _folderStructureService.GetProcessedFileTargetDirectory(originalFilePath, outputExtension);
+                }
+                
+                var processedFilePath = Path.Combine(targetDirectory, newFileName);
 
                 // Ensure unique filename
                 var counter = 1;
                 while (File.Exists(processedFilePath))
                 {
                     newFileName = $"{fileName}_processed_{counter}{outputExtension}";
-                    processedFilePath = Path.Combine(Path.GetDirectoryName(originalFilePath)!, newFileName);
+                    processedFilePath = Path.Combine(targetDirectory, newFileName);
                     counter++;
                 }
 
@@ -2076,8 +2313,10 @@ namespace WAload
                 // Clean up orphaned JSON files first
                 CleanupOrphanedJsonFiles();
                 
-                var files = Directory.GetFiles(DownloadFolder, "*.*", SearchOption.TopDirectoryOnly);
-                System.Diagnostics.Debug.WriteLine($"Found {files.Length} files in download folder");
+                // Muli feature - Use recursive search if folder sorting is enabled
+                var searchOption = _appSettings.FolderSorting ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                var files = Directory.GetFiles(DownloadFolder, "*.*", searchOption);
+                System.Diagnostics.Debug.WriteLine($"Found {files.Length} files in download folder (recursive: {_appSettings.FolderSorting})");
                 
                 foreach (var file in files)
                 {
@@ -2147,7 +2386,10 @@ namespace WAload
                     System.Diagnostics.Debug.WriteLine($"Added media item: {mediaItem.FileName} (Type: {mediaItem.MediaType})");
                     
                     // Create JSON file for the media item (only if it doesn't exist)
-                    if (!File.Exists(Path.Combine(DownloadFolder, Path.GetFileNameWithoutExtension(mediaItem.FileName) + ".json")))
+                    // Muli feature - Check for JSON file in same directory as media file (supports subfolders)
+                    var mediaDirectory = Path.GetDirectoryName(mediaItem.FilePath) ?? DownloadFolder;
+                    var jsonFilePath = Path.Combine(mediaDirectory, Path.GetFileNameWithoutExtension(mediaItem.FileName) + ".json");
+                    if (!File.Exists(jsonFilePath))
                     {
                         CreateMediaJsonFile(mediaItem);
                     }
@@ -2224,7 +2466,9 @@ namespace WAload
             try
             {
                 var jsonFileName = Path.GetFileNameWithoutExtension(mediaItem.FileName) + ".json";
-                var jsonFilePath = Path.Combine(DownloadFolder, jsonFileName);
+                // Muli feature - Place JSON file in same directory as media file (supports subfolders)
+                var mediaDirectory = Path.GetDirectoryName(mediaItem.FilePath) ?? DownloadFolder;
+                var jsonFilePath = Path.Combine(mediaDirectory, jsonFileName);
                 
                 var mediaInfo = new
                 {
@@ -2265,7 +2509,9 @@ namespace WAload
             try
             {
                 var jsonFileName = Path.GetFileNameWithoutExtension(mediaItem.FileName) + ".json";
-                var jsonFilePath = Path.Combine(DownloadFolder, jsonFileName);
+                // Muli feature - Look for JSON file in same directory as media file (supports subfolders)
+                var mediaDirectory = Path.GetDirectoryName(mediaItem.FilePath) ?? DownloadFolder;
+                var jsonFilePath = Path.Combine(mediaDirectory, jsonFileName);
                 
                 if (File.Exists(jsonFilePath))
                 {
@@ -2315,8 +2561,11 @@ namespace WAload
             {
                 System.Diagnostics.Debug.WriteLine("Cleaning up orphaned JSON files...");
                 
-                var jsonFiles = Directory.GetFiles(DownloadFolder, "*.json", SearchOption.TopDirectoryOnly);
-                var mediaFiles = Directory.GetFiles(DownloadFolder, "*.*", SearchOption.TopDirectoryOnly)
+                // Muli feature - Use recursive search if folder sorting is enabled
+                var searchOption = _appSettings.FolderSorting ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                
+                var jsonFiles = Directory.GetFiles(DownloadFolder, "*.json", searchOption);
+                var mediaFiles = Directory.GetFiles(DownloadFolder, "*.*", searchOption)
                     .Where(f => !f.EndsWith(".json"))
                     .Where(f => !Path.GetFileName(f).StartsWith("thumb_")) // Skip thumbnail files
                     .Where(f => !Path.GetFileName(f).StartsWith(".")) // Skip hidden files
@@ -2487,8 +2736,75 @@ namespace WAload
 
         private void RenameFile(MediaItem item)
         {
-            // Implement file renaming functionality
-            StatusMessage = "File renaming not implemented yet";
+            try
+            {
+                if (!File.Exists(item.FilePath))
+                {
+                    System.Windows.MessageBox.Show(
+                        "The file no longer exists and cannot be renamed.",
+                        "File Not Found",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                var renameDialog = new RenameDialog(item.FileName);
+                renameDialog.Owner = this;
+                
+                if (renameDialog.ShowDialog() == true && renameDialog.WasRenamed)
+                {
+                    var directory = Path.GetDirectoryName(item.FilePath);
+                    var newFilePath = Path.Combine(directory!, renameDialog.NewFileName);
+                    
+                    // Check if target file already exists
+                    if (File.Exists(newFilePath))
+                    {
+                        var result = System.Windows.MessageBox.Show(
+                            $"A file named '{renameDialog.NewFileName}' already exists. Do you want to replace it?",
+                            "File Already Exists",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+                            
+                        if (result != MessageBoxResult.Yes)
+                        {
+                            return;
+                        }
+                    }
+                    
+                    // Perform the rename
+                    File.Move(item.FilePath, newFilePath);
+                    
+                    // Also rename the associated JSON file if it exists
+                    var oldJsonPath = Path.ChangeExtension(item.FilePath, ".json");
+                    var newJsonPath = Path.ChangeExtension(newFilePath, ".json");
+                    if (File.Exists(oldJsonPath))
+                    {
+                        File.Move(oldJsonPath, newJsonPath);
+                    }
+                    
+                    // Rename thumbnail if it exists
+                    var oldThumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(item.FileName)}.jpg");
+                    var newThumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(renameDialog.NewFileName)}.jpg");
+                    if (File.Exists(oldThumbnailPath))
+                    {
+                        File.Move(oldThumbnailPath, newThumbnailPath);
+                    }
+                    
+                    StatusMessage = $"File renamed to: {renameDialog.NewFileName}";
+                    System.Diagnostics.Debug.WriteLine($"File renamed: {item.FileName} -> {renameDialog.NewFileName}");
+                    
+                    // The FileSystemWatcher will automatically refresh the UI
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(
+                    $"Failed to rename file: {ex.Message}",
+                    "Rename Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                StatusMessage = "File rename failed";
+            }
         }
 
         private void DeleteFile(MediaItem item)
@@ -3009,6 +3325,9 @@ namespace WAload
                 
                 // Dispose MessageQueue first
                 _messageQueue?.Dispose();
+                
+                // ch13 feature - Dispose folder structure service
+                _folderStructureService?.Dispose();
                 
                 // Dispose timers
                 _refreshTimer?.Dispose();

@@ -67,6 +67,9 @@ namespace WAload.Models
 
         [JsonPropertyName("SenderName")]
         public string? SenderName { get; set; }
+
+        [JsonPropertyName("Body")]
+        public string? Body { get; set; } // Muli feature - message body/caption
     }
 
     public class TextInfo
