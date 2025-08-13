@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using WAload.Models;
 
@@ -250,8 +251,18 @@ namespace WAload.Services
                 else
                 {
                     // We're in base directory, create subfolder
-                    targetDir = Path.Combine(originalDir, targetFormatFolder);
-                    System.Diagnostics.Debug.WriteLine($"[ch13] Creating subfolder {targetFormatFolder} in {originalDir}");
+                    // Check if dated folders are enabled - if so, use the date folder as base
+                    string baseDir = originalDir;
+                    if (_settings.DatedFolders)
+                    {
+                        // Extract the base download folder and add current date
+                        var downloadFolder = GetBaseDownloadFolder(originalDir);
+                        var dateFolder = DateTime.Now.ToString("dd-MM-yy");
+                        baseDir = Path.Combine(downloadFolder, dateFolder);
+                        System.Diagnostics.Debug.WriteLine($"[ch13] Using dated base directory: {baseDir}");
+                    }
+                    targetDir = Path.Combine(baseDir, targetFormatFolder);
+                    System.Diagnostics.Debug.WriteLine($"[ch13] Creating subfolder {targetFormatFolder} in {baseDir}");
                 }
                 
                 // Create target directory if it doesn't exist
@@ -266,6 +277,37 @@ namespace WAload.Services
             
             // If format sorting is disabled, keep in same directory as original
             return originalDir;
+        }
+
+        /// <summary>
+        /// Extract the base download folder from any path (removes date and format subfolders)
+        /// </summary>
+        private string GetBaseDownloadFolder(string path)
+        {
+            // If the path contains date pattern (dd-MM-yy), extract base folder
+            var pathParts = path.Split(Path.DirectorySeparatorChar);
+            
+            for (int i = pathParts.Length - 1; i >= 0; i--)
+            {
+                var part = pathParts[i];
+                
+                // Check if this part looks like a date folder (dd-MM-yy pattern)
+                if (System.Text.RegularExpressions.Regex.IsMatch(part, @"^\d{2}-\d{2}-\d{2}$"))
+                {
+                    // Return path up to (but not including) the date folder
+                    return string.Join(Path.DirectorySeparatorChar.ToString(), pathParts.Take(i));
+                }
+                
+                // Check if this part is a format folder
+                if (part == "image" || part == "mp4" || part == "mxf")
+                {
+                    // Continue looking for date folder or return path without format folder
+                    continue;
+                }
+            }
+            
+            // If no date pattern found, assume this is already the base folder
+            return path;
         }
 
         public void Dispose()

@@ -324,7 +324,22 @@ namespace WAload
             
             // ch13 feature - Initialize date and format folders on app load
             _folderStructureService?.EnsureDateFolderExists(DownloadFolder);
-            _folderStructureService?.EnsureFormatFoldersExist(DownloadFolder);
+            
+            if (_appSettings.FolderFormatSorting)
+            {
+                if (_appSettings.DatedFolders)
+                {
+                    // If both features are enabled, create format folders inside the dated folder
+                    var dateFolder = DateTime.Now.ToString("dd-MM-yy");
+                    var dateFolderPath = Path.Combine(DownloadFolder, dateFolder);
+                    _folderStructureService?.EnsureFormatFoldersExist(dateFolderPath);
+                }
+                else
+                {
+                    // If only format sorting is enabled, create format folders in base download folder
+                    _folderStructureService?.EnsureFormatFoldersExist(DownloadFolder);
+                }
+            }
 
             // Set media processing from settings
             IsMediaProcessingEnabled = _appSettings.IsMediaProcessingEnabled;

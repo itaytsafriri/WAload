@@ -23,9 +23,9 @@ namespace WAload
                 DownloadSocialMediaVideos = currentSettings.DownloadSocialMediaVideos,
                 FolderSorting = true, // Muli feature - always enabled, hidden from UI
                 
-                // ch13 features - client-specific features (hidden from normal release - always disabled)
-                DatedFolders = false, // currentSettings.DatedFolders,
-                FolderFormatSorting = false // currentSettings.FolderFormatSorting
+                // ch13 features - client-specific features (ENABLED FOR TESTING)
+                DatedFolders = currentSettings.DatedFolders,
+                FolderFormatSorting = currentSettings.FolderFormatSorting
             };
 
             // Initialize video processing service
@@ -38,9 +38,9 @@ namespace WAload
             DownloadSocialMediaVideosToggle.IsChecked = Settings.DownloadSocialMediaVideos;
             // FolderSortingToggle.IsChecked = Settings.FolderSorting; // Muli feature - toggle hidden from UI
             
-            // ch13 features - bind toggles for client-specific features (hidden for normal release)
-            // DatedFoldersToggle.IsChecked = Settings.DatedFolders;
-            // FolderFormatSortingToggle.IsChecked = Settings.FolderFormatSorting;
+            // ch13 features - bind toggles for client-specific features (ENABLED FOR TESTING)
+            DatedFoldersToggle.IsChecked = Settings.DatedFolders;
+            FolderFormatSortingToggle.IsChecked = Settings.FolderFormatSorting;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -52,9 +52,9 @@ namespace WAload
             Settings.DownloadSocialMediaVideos = DownloadSocialMediaVideosToggle.IsChecked ?? false;
             Settings.FolderSorting = true; // Muli feature - always enabled, not controlled by UI
             
-            // ch13 features - update settings from toggles (hidden for normal release - features disabled)
-            Settings.DatedFolders = false; // DatedFoldersToggle.IsChecked ?? false;
-            Settings.FolderFormatSorting = false; // FolderFormatSortingToggle.IsChecked ?? false;
+            // ch13 features - update settings from toggles (ENABLED FOR TESTING)
+            Settings.DatedFolders = DatedFoldersToggle.IsChecked ?? false;
+            Settings.FolderFormatSorting = FolderFormatSortingToggle.IsChecked ?? false;
             
             // ch13 features - Create folders if features are enabled and download folder exists
             if (!string.IsNullOrEmpty(Settings.DownloadFolder) && Directory.Exists(Settings.DownloadFolder))
@@ -71,18 +71,20 @@ namespace WAload
                     
                     if (Settings.FolderFormatSorting)
                     {
-                        // Create format folders in the base download folder and any existing date folders
-                        folderStructureService.EnsureFormatFoldersExist(Settings.DownloadFolder);
-                        
-                        // If both features are enabled, also create format folders in today's date folder
                         if (Settings.DatedFolders)
                         {
+                            // If both features are enabled, create format folders only in today's date folder
                             var dateFolder = DateTime.Now.ToString("dd-MM-yy");
                             var dateFolderPath = Path.Combine(Settings.DownloadFolder, dateFolder);
                             if (Directory.Exists(dateFolderPath))
                             {
                                 folderStructureService.EnsureFormatFoldersExist(dateFolderPath);
                             }
+                        }
+                        else
+                        {
+                            // If only format sorting is enabled, create format folders in base download folder
+                            folderStructureService.EnsureFormatFoldersExist(Settings.DownloadFolder);
                         }
                         
                         System.Diagnostics.Debug.WriteLine("[ch13] Created format folders on settings save");

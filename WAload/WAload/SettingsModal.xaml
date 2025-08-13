@@ -229,8 +229,7 @@
             <!-- Right Column -->
             <StackPanel Grid.Column="1" Margin="10,0,0,0">
 
-            <!-- ch13 features - Dated Folders and Folder Format Sorting (client-specific features) - HIDDEN FOR NORMAL RELEASE -->
-            <!--
+            <!-- ch13 features - Dated Folders and Folder Format Sorting (client-specific features) - ENABLED FOR TESTING -->
             <Border Background="White" 
                     BorderBrush="#DEE2E6" 
                     BorderThickness="1" 
@@ -290,7 +289,6 @@
                                   VerticalAlignment="Center"/>
                 </Grid>
             </Border>
-            -->
 
             <!-- Folder Sorting Setting (Muli feature) - HIDDEN FROM UI, ENABLED BY DEFAULT
             <Border Background="White" 
