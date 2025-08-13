@@ -64,6 +64,8 @@ namespace WAload
         private System.Threading.Timer? _socialMediaDownloadErrorTimer;
         private GridViewColumnHeader? _lastHeaderClicked = null;
         private ListSortDirection _lastDirection = ListSortDirection.Ascending;
+        private string? _pendingQrCode = null; // Store QR code until user clicks Connect
+        private bool _userWantsToConnect = false; // Track if user has clicked Connect
         
         public ObservableCollection<MediaItem> MediaItems => _mediaItems;
         public ObservableCollection<WhatsGroup> Groups => _groups;
@@ -345,6 +347,9 @@ namespace WAload
             // Initialize yt-dlp on startup
             _ = Task.Run(async () => await InitializeYtDlpAsync());
 
+            // Start WhatsApp service on startup for instant QR code availability
+            _ = Task.Run(async () => await StartWhatsAppServiceAsync());
+
             // In MainWindow constructor or OnLoaded, hook up the toggle and animation
             Loaded += (s, e) =>
             {
@@ -552,18 +557,42 @@ namespace WAload
                 {
                     // Logout functionality
                     StatusMessage = "Logging out...";
+                    _userWantsToConnect = false; // Reset flag on logout
+                    _pendingQrCode = null; // Clear stored QR code
                     await _whatsAppService.LogoutAsync();
                 }
                 else
                 {
-                    // Connect functionality
+                    // Connect functionality - service should already be running
                     StatusMessage = "Connecting to WhatsApp...";
                     ConnectButton.IsEnabled = false;
                     StopConnectButtonFlash(); // Stop flashing when clicked
                     
-                    await _whatsAppService.InitializeAsync();
+                    // Set flag that user wants to connect
+                    _userWantsToConnect = true;
                     
-                    StatusMessage = "Waiting for QR code...";
+                    // If we already have a QR code, display it immediately
+                    if (!string.IsNullOrEmpty(_pendingQrCode))
+                    {
+                        DisplayQrCode(_pendingQrCode);
+                    }
+                    else
+                    {
+                        StatusMessage = "Waiting for QR code...";
+                        
+                        // If for some reason the service isn't running, initialize it
+                        if (_whatsAppService.IsConnected == false)
+                        {
+                            try
+                            {
+                                await _whatsAppService.InitializeAsync();
+                            }
+                            catch (Exception initEx)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Service wasn't running, re-initialized: {initEx.Message}");
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -782,16 +811,39 @@ namespace WAload
             }
         }
 
-        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        private void MediaListView_GotFocus(object sender, RoutedEventArgs e)
         {
-            base.OnKeyDown(e);
-            
+            // ListView received focus - ready for keyboard input
+        }
+
+        private void MediaListView_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // Ensure ListView gets focus when clicked
+            if (!MediaListView.IsFocused)
+            {
+                MediaListView.Focus();
+            }
+        }
+
+        private void MediaListView_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
             // Handle Delete key for selected items
             if (e.Key == System.Windows.Input.Key.Delete && MediaListView.SelectedItem is MediaItem item)
             {
                 DeleteFile(item);
                 e.Handled = true;
             }
+            // Handle F2 key for renaming selected items
+            else if (e.Key == System.Windows.Input.Key.F2 && MediaListView.SelectedItem is MediaItem renameItem)
+            {
+                RenameFile(renameItem);
+                e.Handled = true;
+            }
+        }
+
+        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
         }
 
         private void OpenFileMenuItem_Click(object sender, RoutedEventArgs e)
@@ -884,6 +936,26 @@ namespace WAload
         {
             System.Diagnostics.Debug.WriteLine($"QR code event received in MainWindow: {qrCode.Substring(0, Math.Min(50, qrCode.Length))}...");
             
+            // Store the QR code for when the user clicks Connect
+            _pendingQrCode = qrCode;
+            
+            // Only display the QR code if the user has clicked Connect
+            if (_userWantsToConnect)
+            {
+                DisplayQrCode(qrCode);
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "WhatsApp service ready - click Connect to see QR code";
+                    System.Diagnostics.Debug.WriteLine("QR code received and stored, waiting for user to click Connect");
+                });
+            }
+        }
+
+        private void DisplayQrCode(string qrCode)
+        {
             Dispatcher.Invoke(() =>
             {
                 try
@@ -1359,6 +1431,41 @@ namespace WAload
                     System.Diagnostics.Debug.WriteLine($"[MainWindow] Error during scheduled yt-dlp update: {ex.Message}");
                 }
             }, null, TimeSpan.FromHours(24), TimeSpan.FromHours(24)); // First update after 24 hours, then every 24 hours
+        }
+
+        private async Task StartWhatsAppServiceAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("[MainWindow] Starting WhatsApp service on app load...");
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "Initializing WhatsApp service...";
+                });
+
+                // Initialize the WhatsApp service
+                await _whatsAppService.InitializeAsync();
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "WhatsApp service ready - QR code will appear when you click Connect";
+                });
+
+                System.Diagnostics.Debug.WriteLine("[MainWindow] WhatsApp service started successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to start WhatsApp service on app load: {ex.Message}");
+                
+                // Update status on UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "Ready - WhatsApp service will start when you click Connect";
+                });
+            }
         }
 
         private List<string> ExtractUrls(string text)
@@ -2629,8 +2736,75 @@ namespace WAload
 
         private void RenameFile(MediaItem item)
         {
-            // Implement file renaming functionality
-            StatusMessage = "File renaming not implemented yet";
+            try
+            {
+                if (!File.Exists(item.FilePath))
+                {
+                    System.Windows.MessageBox.Show(
+                        "The file no longer exists and cannot be renamed.",
+                        "File Not Found",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                var renameDialog = new RenameDialog(item.FileName);
+                renameDialog.Owner = this;
+                
+                if (renameDialog.ShowDialog() == true && renameDialog.WasRenamed)
+                {
+                    var directory = Path.GetDirectoryName(item.FilePath);
+                    var newFilePath = Path.Combine(directory!, renameDialog.NewFileName);
+                    
+                    // Check if target file already exists
+                    if (File.Exists(newFilePath))
+                    {
+                        var result = System.Windows.MessageBox.Show(
+                            $"A file named '{renameDialog.NewFileName}' already exists. Do you want to replace it?",
+                            "File Already Exists",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+                            
+                        if (result != MessageBoxResult.Yes)
+                        {
+                            return;
+                        }
+                    }
+                    
+                    // Perform the rename
+                    File.Move(item.FilePath, newFilePath);
+                    
+                    // Also rename the associated JSON file if it exists
+                    var oldJsonPath = Path.ChangeExtension(item.FilePath, ".json");
+                    var newJsonPath = Path.ChangeExtension(newFilePath, ".json");
+                    if (File.Exists(oldJsonPath))
+                    {
+                        File.Move(oldJsonPath, newJsonPath);
+                    }
+                    
+                    // Rename thumbnail if it exists
+                    var oldThumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(item.FileName)}.jpg");
+                    var newThumbnailPath = Path.Combine(GetThumbnailsDirectory(), $"thumb_{Path.GetFileNameWithoutExtension(renameDialog.NewFileName)}.jpg");
+                    if (File.Exists(oldThumbnailPath))
+                    {
+                        File.Move(oldThumbnailPath, newThumbnailPath);
+                    }
+                    
+                    StatusMessage = $"File renamed to: {renameDialog.NewFileName}";
+                    System.Diagnostics.Debug.WriteLine($"File renamed: {item.FileName} -> {renameDialog.NewFileName}");
+                    
+                    // The FileSystemWatcher will automatically refresh the UI
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(
+                    $"Failed to rename file: {ex.Message}",
+                    "Rename Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                StatusMessage = "File rename failed";
+            }
         }
 
         private void DeleteFile(MediaItem item)

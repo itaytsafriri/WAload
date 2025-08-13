@@ -447,7 +447,12 @@
                       Background="White" BorderBrush="#DEE2E6" BorderThickness="1,0,1,1"
                       ItemsSource="{Binding MediaItems}"
                       SelectionMode="Extended"
-                      MouseDoubleClick="MediaListView_MouseDoubleClick">
+                      Focusable="True"
+                      IsTabStop="True"
+                      MouseDoubleClick="MediaListView_MouseDoubleClick"
+                      PreviewMouseDown="MediaListView_PreviewMouseDown"
+                      GotFocus="MediaListView_GotFocus"
+                      KeyDown="MediaListView_KeyDown">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn>
