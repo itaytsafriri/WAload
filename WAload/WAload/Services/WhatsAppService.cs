@@ -499,7 +499,7 @@ namespace WAload.Services
                     HasMedia = !string.IsNullOrEmpty(originalMessage.Data?.ToString()),
                     MediaType = ExtractMediaType(originalMessage.Type?.ToString(), originalMessage.Filename?.ToString()),
                     MimeType = ExtractMimeType(originalMessage.Type?.ToString(), originalMessage.Filename?.ToString()),
-                    Body = string.Empty, // Node.js MediaInfo doesn't have Body property
+                    Body = originalMessage.Body?.ToString() ?? string.Empty, // Muli feature - Include message body
                     FromMe = false // Node.js MediaInfo doesn't have FromMe property
                 };
 

@@ -491,7 +491,8 @@ function setupEventListeners() {
                                     Filename: `${senderName}_${timestamp}.${extension}`,
                                     Data: media.data,
                                     Size: media.size,
-                                    SenderName: contact.pushname || contact.name || contact.number
+                                    SenderName: contact.pushname || contact.name || contact.number,
+                                    Body: msg.body || '' // Muli feature - Include message body/caption
                                 }
                             });
                         }
@@ -562,7 +563,8 @@ function setupEventListeners() {
                                     Filename: `${senderName}_${timestamp}.${extension}`,
                                     Data: media.data,
                                     Size: media.size,
-                                    SenderName: contact.pushname || contact.name || contact.number
+                                    SenderName: contact.pushname || contact.name || contact.number,
+                                    Body: msg.body || '' // Muli feature - Include message body/caption
                                 }
                             });
                         }
