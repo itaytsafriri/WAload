@@ -11,9 +11,9 @@ namespace WAload.Models
         private bool _downloadSocialMediaVideos = false;
         private bool _folderSorting = true; // Muli feature - folder sorting by name (enabled by default, hidden from UI)
         
-        // ch13 features - Dated Folders and Folder Format Sorting (client-specific features)
-        private bool _datedFolders = false; // ch13 feature - create date-based folders
-        private bool _folderFormatSorting = false; // ch13 feature - sort files by format into subfolders
+        // ch13 features - Dated Folders and Folder Format Sorting (client-specific features) - DISABLED BY DEFAULT
+        private bool _datedFolders = false; // ch13 feature - create date-based folders (hidden for normal release)
+        private bool _folderFormatSorting = false; // ch13 feature - sort files by format into subfolders (hidden for normal release)
 
         public bool ScreenshotXTweets
         {

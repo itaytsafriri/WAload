@@ -23,9 +23,9 @@ namespace WAload
                 DownloadSocialMediaVideos = currentSettings.DownloadSocialMediaVideos,
                 FolderSorting = true, // Muli feature - always enabled, hidden from UI
                 
-                // ch13 features - client-specific features (hidden from normal release)
-                DatedFolders = currentSettings.DatedFolders,
-                FolderFormatSorting = currentSettings.FolderFormatSorting
+                // ch13 features - client-specific features (hidden from normal release - always disabled)
+                DatedFolders = false, // currentSettings.DatedFolders,
+                FolderFormatSorting = false // currentSettings.FolderFormatSorting
             };
 
             // Initialize video processing service
@@ -38,9 +38,9 @@ namespace WAload
             DownloadSocialMediaVideosToggle.IsChecked = Settings.DownloadSocialMediaVideos;
             // FolderSortingToggle.IsChecked = Settings.FolderSorting; // Muli feature - toggle hidden from UI
             
-            // ch13 features - bind toggles for client-specific features (enabled for testing)
-            DatedFoldersToggle.IsChecked = Settings.DatedFolders;
-            FolderFormatSortingToggle.IsChecked = Settings.FolderFormatSorting;
+            // ch13 features - bind toggles for client-specific features (hidden for normal release)
+            // DatedFoldersToggle.IsChecked = Settings.DatedFolders;
+            // FolderFormatSortingToggle.IsChecked = Settings.FolderFormatSorting;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -52,9 +52,9 @@ namespace WAload
             Settings.DownloadSocialMediaVideos = DownloadSocialMediaVideosToggle.IsChecked ?? false;
             Settings.FolderSorting = true; // Muli feature - always enabled, not controlled by UI
             
-            // ch13 features - update settings from toggles (enabled for testing)
-            Settings.DatedFolders = DatedFoldersToggle.IsChecked ?? false;
-            Settings.FolderFormatSorting = FolderFormatSortingToggle.IsChecked ?? false;
+            // ch13 features - update settings from toggles (hidden for normal release - features disabled)
+            Settings.DatedFolders = false; // DatedFoldersToggle.IsChecked ?? false;
+            Settings.FolderFormatSorting = false; // FolderFormatSortingToggle.IsChecked ?? false;
             
             // ch13 features - Create folders if features are enabled and download folder exists
             if (!string.IsNullOrEmpty(Settings.DownloadFolder) && Directory.Exists(Settings.DownloadFolder))
